@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SENTINEL // MK.VIII — Configurable Cinematic HUD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #05070c;
+    --cyan: #4fe8ff;
+    --cyan-dim: rgba(79, 232, 255, 0.35);
+    --text: #dff7ff;
+  }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background:
+      radial-gradient(ellipse at 68% 62%, rgba(255,138,61,0.05) 0%, transparent 40%),
+      radial-gradient(ellipse at 20% 15%, rgba(79,232,255,0.05) 0%, transparent 45%),
+      linear-gradient(160deg, #050709 0%, #060a12 55%, #030509 100%);
+    overflow: hidden;
+    font-family: 'Share Tech Mono', monospace;
+  }
+  #scene-wrap { position: absolute; inset: 0; perspective: 1400px; }
+  canvas {
+    display: block; position: absolute; top: 0; left: 0;
+    transform-style: preserve-3d; transition: transform 0.15s ease-out;
+  }
+
+  .scanlines {
+    position: absolute; inset: 0; pointer-events: none; z-index: 5;
+    background: repeating-linear-gradient(to bottom,
+      rgba(79, 232, 255, 0.02) 0px, rgba(79, 232, 255, 0.02) 1px,
+      transparent 1px, transparent 3px);
+    mix-blend-mode: screen;
+  }
+  .vignette {
+    position: absolute; inset: 0; pointer-events: none; z-index: 6;
+    background: radial-gradient(ellipse at 55% 58%, transparent 35%, rgba(0,0,0,0.6) 100%);
+  }
+  .grain {
+    position: absolute; inset: 0; pointer-events: none; z-index: 7;
+    opacity: 0.03; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .bracket {
+    position: absolute; width: 46px; height: 46px; z-index: 4;
+    border-color: var(--cyan); opacity: 0.55;
+  }
+  #b-tl { top: 26px; left: 26px; border-top: 2px solid; border-left: 2px solid; }
+  #b-tr { top: 26px; right: 26px; border-top: 2px solid; border-right: 2px solid; }
+  #b-bl { bottom: 26px; left: 26px; border-bottom: 2px solid; border-left: 2px solid; }
+  #b-br { bottom: 26px; right: 26px; border-bottom: 2px solid; border-right: 2px solid; }
+
+  .hud-label {
+    position: absolute; z-index: 4; color: var(--cyan);
+    font-size: 10.5px; letter-spacing: 3px; text-transform: uppercase;
+    opacity: 0.75; text-shadow: 0 0 8px var(--cyan-dim);
+  }
+  .hud-label small {
+    display: block; color: var(--text); opacity: 0.5;
+    font-size: 9px; letter-spacing: 2px; margin-top: 4px;
+  }
+  #tr { top: 40px; right: 44px; text-align: right; }
+  #status-dot {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--cyan); margin-right: 8px; box-shadow: 0 0 8px var(--cyan);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+  @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .code-panel {
+    position: absolute; top: 40px; left: 40px; width: 236px; z-index: 4;
+    background: rgba(6, 10, 18, 0.45);
+    border: 1px solid rgba(79, 232, 255, 0.28);
+    transform-origin: left center;
+    display: none;
+    animation: panel-float 9s ease-in-out infinite;
+  }
+  .code-panel.on { display: block; }
+  @keyframes panel-float {
+    0%, 100% { transform: perspective(700px) rotateY(-3deg) rotateX(1deg) translateZ(0); }
+    50% { transform: perspective(700px) rotateY(-5deg) rotateX(2.5deg) translateZ(14px); }
+  }
+  .code-panel .titlebar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 5px 9px; border-bottom: 1px solid rgba(79, 232, 255, 0.2);
+    font-size: 9.5px; letter-spacing: 2px; color: var(--cyan); opacity: 0.75;
+  }
+  .code-panel .dots { display: flex; gap: 4px; }
+  .code-panel .dots span { width: 5px; height: 5px; border-radius: 50%; background: rgba(79,232,255,0.4); }
+  .code-log {
+    height: 92px; overflow: hidden; position: relative;
+    font-size: 9px; line-height: 14px; color: rgba(200, 235, 255, 0.4);
+    padding: 6px 9px;
+  }
+  .code-log-inner { animation: logScroll 16s linear infinite; }
+  .code-log-inner div { white-space: nowrap; }
+  @keyframes logScroll { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+  .code-panel .pills { display: flex; gap: 6px; padding: 7px 9px; border-top: 1px solid rgba(79,232,255,0.15); }
+  .pill {
+    border: 1px solid rgba(79, 232, 255, 0.35); border-radius: 9px;
+    font-size: 8px; letter-spacing: 1.5px; padding: 2px 9px;
+    color: var(--cyan); opacity: 0.6;
+  }
+
+  .ticker-wrap {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 22px; z-index: 4;
+    overflow: hidden; border-top: 1px solid rgba(79,232,255,0.13);
+    background: linear-gradient(to top, rgba(5,8,14,0.6), transparent);
+    display: none;
+  }
+  .ticker-wrap.on { display: block; }
+  .ticker {
+    position: absolute; white-space: nowrap; top: 4px;
+    color: var(--cyan); opacity: 0.5; font-size: 10.5px; letter-spacing: 2px;
+    animation: scroll-ticker 36s linear infinite;
+  }
+  @keyframes scroll-ticker { from { transform: translateX(100vw); } to { transform: translateX(-100%); } }
+
+  /* ---------- Settings ---------- */
+  #gear {
+    position: absolute; z-index: 20; top: 20px; left: 50%; transform: translateX(-50%);
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 1px solid rgba(79,232,255,0.4); background: rgba(6,10,18,0.55);
+    color: var(--cyan); font-size: 15px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; opacity: 0.45; transition: opacity 0.2s;
+  }
+  #gear:hover { opacity: 1; }
+  #settings {
+    position: absolute; z-index: 21; top: 60px; left: 50%; transform: translateX(-50%);
+    width: 280px; max-height: 72vh; overflow-y: auto;
+    background: rgba(6, 10, 18, 0.92); border: 1px solid rgba(79,232,255,0.35);
+    padding: 14px 16px; display: none; color: var(--text); font-size: 11px;
+  }
+  #settings.on { display: block; }
+  #settings h4 {
+    margin: 0 0 8px; color: var(--cyan); font-size: 10px; letter-spacing: 2px;
+    text-transform: uppercase; opacity: 0.8; border-bottom: 1px solid rgba(79,232,255,0.2); padding-bottom: 6px;
+  }
+  .preset-row { display: flex; gap: 6px; margin-bottom: 12px; }
+  .preset-btn {
+    flex: 1; text-align: center; padding: 5px 0; border: 1px solid rgba(79,232,255,0.35);
+    color: var(--cyan); font-size: 9.5px; letter-spacing: 1px; cursor: pointer; opacity: 0.7;
+  }
+  .preset-btn:hover { opacity: 1; background: rgba(79,232,255,0.08); }
+  .mod-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 10.5px; cursor: pointer; }
+  .mod-row input { accent-color: #4fe8ff; }
+  .layer-row {
+    padding: 6px 0; border-bottom: 1px solid rgba(79,232,255,0.08);
+  }
+  .layer-row:last-child { border-bottom: none; }
+  .layer-row .layer-top {
+    display: flex; align-items: center; gap: 6px; font-size: 10.5px;
+  }
+  .layer-row .layer-label { flex: 1; cursor: pointer; }
+  .layer-row input[type="checkbox"] { accent-color: #4fe8ff; }
+  .layer-order-btns { display: flex; gap: 2px; }
+  .layer-order-btns button {
+    width: 18px; height: 18px; padding: 0; line-height: 1;
+    background: rgba(79,232,255,0.08); border: 1px solid rgba(79,232,255,0.3);
+    color: var(--cyan); font-size: 9px; cursor: pointer;
+  }
+  .layer-order-btns button:disabled { opacity: 0.25; cursor: default; }
+  .layer-order-btns button:not(:disabled):hover { background: rgba(79,232,255,0.18); }
+  .layer-brightness { display: flex; align-items: center; gap: 6px; margin-top: 4px; padding-left: 2px; }
+  .layer-brightness span { font-size: 8.5px; color: rgba(79,232,255,0.5); width: 46px; letter-spacing: 1px; }
+  .layer-brightness input[type="range"] { flex: 1; accent-color: #4fe8ff; height: 12px; }
+  .layer-brightness output { font-size: 8.5px; color: rgba(79,232,255,0.6); width: 28px; text-align: right; }
+  .theme-row { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .theme-dot {
+    width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+    border: 2px solid rgba(255,255,255,0.15);
+  }
+  .theme-dot.active { border-color: #fff; }
+</style>
+</head>
+<body>
+<div id="scene-wrap"><canvas id="c"></canvas></div>
+<div class="scanlines"></div>
+<div class="vignette"></div>
+<div class="grain"></div>
+
+<div class="bracket" id="b-tl"></div>
+<div class="bracket" id="b-tr"></div>
+<div class="bracket" id="b-bl"></div>
+<div class="bracket" id="b-br"></div>
+
+<div class="code-panel" id="code-panel">
+  <div class="titlebar">
+    <span class="dots"><span></span><span></span><span></span></span>
+    <span>EDIT_SYS.LOG</span><span></span>
+  </div>
+  <div class="code-log"><div class="code-log-inner" id="code-log-inner"></div></div>
+  <div class="pills"><span class="pill">BACK</span><span class="pill">EXIT</span></div>
+</div>
+
+<div class="hud-label" id="tr">
+  <span id="date-readout">—</span>
+  <small id="audio-status"><span id="status-dot"></span>AUDIO LINK: STANDBY</small>
+</div>
+
+<div class="ticker-wrap" id="ticker-wrap">
+  <div class="ticker">PWR CORE 98.4% · TRACKING ARRAY NOMINAL · UPLINK STABLE · SPECTRUM ANALYSIS ACTIVE · THERMAL WITHIN RANGE · NET SECURE · AUX SYSTEMS STANDBY ·</div>
+</div>
+
+<div id="gear" title="Settings">⚙</div>
+<div id="settings">
+  <h4>Presets</h4>
+  <div class="preset-row">
+    <div class="preset-btn" data-preset="minimal">MINIMAL</div>
+    <div class="preset-btn" data-preset="balanced">BALANCED</div>
+    <div class="preset-btn" data-preset="dense">DENSE</div>
+  </div>
+  <h4>Layers <small style="letter-spacing:1px; opacity:0.6; text-transform:none;">(top = front, ▲▼ reorders, slider dims)</small></h4>
+  <div id="layer-list"></div>
+  <h4 style="margin-top:12px;">Other HUD Elements</h4>
+  <div id="mod-list"></div>
+  <h4 style="margin-top:12px;">Color Contrast</h4>
+  <div class="theme-row" id="theme-row"></div>
+</div>
+
+<script>
+/* ============================================================
+   SENTINEL MK.VIII — configurable cinematic audio-reactive HUD
+   Every module is independently toggleable via the in-wallpaper
+   settings panel (gear icon, top center). Orbit rings use real
+   perspective-projected 3D math with depth occlusion behind the
+   core sphere. Color contrast theme is selectable. All audio-
+   reactive modules run on live system audio via Wallpaper
+   Engine's audio API, with a simulated fallback for preview.
+   ============================================================ */
+
+// ---------- Module registry & settings persistence ----------
+// LAYERS: canvas-drawn HUD elements. These support on/off, draw-order
+// (front-to-back) and brightness, all adjustable from the settings panel.
+const LAYERS = [
+  { key: 'scatteredLabels', label: 'Scattered Data Labels' },
+  { key: 'alert', label: 'Peak Alert Cluster' },
+  { key: 'systemMonitor', label: 'CPU/GPU/RAM/Net (real, needs companion script)' },
+  { key: 'weather', label: 'Weather (real, live)' },
+  { key: 'identityScan', label: 'Identity Scan (point cloud)' },
+  { key: 'earthMap', label: 'Rotating Earth (point cloud)' },
+  { key: 'compass', label: 'Compass (real wind bearing)' },
+  { key: 'gauges', label: 'CPU/RAM/GPU/NET Gauges (real, needs companion script)' },
+  { key: 'distribution', label: 'Signal Distribution Graph' },
+  { key: 'clock', label: 'Clock' },
+  { key: 'core', label: 'Core & 3D Orbit Rings' },
+  { key: 'hazard', label: 'Hazard-Stripe Corners' },
+  { key: 'hexGrid', label: 'Hex Grid' },
+  { key: 'starfield', label: 'Starfield' },
+  { key: 'radarSweep', label: 'Radar Sweep' },
+];
+// DOM_LAYERS: elements rendered as HTML/CSS overlays rather than on the
+// canvas, so they don't participate in canvas draw order or brightness.
+const DOM_LAYERS = [
+  { key: 'logPanel', label: 'System Log Panel' },
+  { key: 'ticker', label: 'Ticker Text' },
+];
+const MODULES = LAYERS.concat(DOM_LAYERS);
+const DEFAULT_ORDER = LAYERS.map(l => l.key); // index 0 = frontmost (drawn last)
+const PRESETS = {
+  minimal: { core: true, clock: true, starfield: true, hazard: false, distribution: false, gauges: false, alert: false, logPanel: false, compass: false, hexGrid: false, radarSweep: false, identityScan: false, ticker: false, scatteredLabels: false, weather: false, systemMonitor: false },
+  balanced: { core: true, clock: true, starfield: true, hazard: true, distribution: true, gauges: true, alert: true, logPanel: false, compass: false, hexGrid: false, radarSweep: false, identityScan: false, ticker: false, scatteredLabels: false, weather: true, systemMonitor: true },
+  dense: Object.fromEntries(MODULES.map(m => [m.key, true])),
+};
+const THEMES = {
+  amber:   { name: 'Cyan + Amber',  core: '255,138,61',  accent: '255,180,84', swatch: '#ff8a3d' },
+  magenta: { name: 'Cyan + Magenta', core: '255,60,180', accent: '255,90,190', swatch: '#ff3cb4' },
+  silver:  { name: 'Cyan + Silver', core: '235,240,245', accent: '210,220,230', swatch: '#e8edf2' },
+  mono:    { name: 'Monochrome Cyan', core: '150,235,255', accent: '79,232,255', swatch: '#4fe8ff' },
+};
+
+let CONFIG;
+try {
+  CONFIG = JSON.parse(localStorage.getItem('sentinelConfig'));
+} catch (e) { CONFIG = null; }
+if (!CONFIG) CONFIG = Object.assign({}, PRESETS.balanced, { theme: 'amber' });
+
+// Migrate old saved configs that had a single combined 'radarHex' toggle.
+if (CONFIG.radarHex !== undefined) {
+  if (CONFIG.hexGrid === undefined) CONFIG.hexGrid = CONFIG.radarHex;
+  if (CONFIG.radarSweep === undefined) CONFIG.radarSweep = CONFIG.radarHex;
+  delete CONFIG.radarHex;
+}
+if (!Array.isArray(CONFIG.order)) CONFIG.order = DEFAULT_ORDER.slice();
+// Add any layer keys missing from a saved order (e.g. after an update) to the front.
+LAYERS.forEach(l => { if (!CONFIG.order.includes(l.key)) CONFIG.order.unshift(l.key); });
+CONFIG.order = CONFIG.order.filter(k => LAYERS.some(l => l.key === k));
+if (typeof CONFIG.brightness !== 'object' || !CONFIG.brightness) CONFIG.brightness = {};
+LAYERS.forEach(l => { if (typeof CONFIG.brightness[l.key] !== 'number') CONFIG.brightness[l.key] = 100; });
+if (CONFIG.hexStyle !== 'sweep' && CONFIG.hexStyle !== 'pulse') CONFIG.hexStyle = 'pulse';
+if (typeof CONFIG.hexScale !== 'number') CONFIG.hexScale = 1.6;
+
+function saveConfig() {
+  try { localStorage.setItem('sentinelConfig', JSON.stringify(CONFIG)); } catch (e) {}
+}
+function theme() { return THEMES[CONFIG.theme] || THEMES.amber; }
+function getBrightness(key) {
+  const v = CONFIG.brightness && CONFIG.brightness[key];
+  return (typeof v === 'number' ? v : 100) / 100;
+}
+
+function syncHtmlModules() {
+  document.getElementById('code-panel').classList.toggle('on', !!CONFIG.logPanel);
+  document.getElementById('ticker-wrap').classList.toggle('on', !!CONFIG.ticker);
+}
+
+// ---------- Settings panel UI ----------
+const gear = document.getElementById('gear');
+const settingsEl = document.getElementById('settings');
+gear.addEventListener('click', () => settingsEl.classList.toggle('on'));
+
+function renderModList() {
+  const list = document.getElementById('mod-list');
+  list.innerHTML = '';
+  DOM_LAYERS.forEach(m => {
+    const row = document.createElement('label');
+    row.className = 'mod-row';
+    row.innerHTML = `<input type="checkbox" data-key="${m.key}" ${CONFIG[m.key] ? 'checked' : ''}/> ${m.label}`;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('change', () => {
+      CONFIG[inp.dataset.key] = inp.checked;
+      saveConfig();
+      syncHtmlModules();
+    });
+  });
+}
+
+function moveLayer(key, dir) {
+  const i = CONFIG.order.indexOf(key);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= CONFIG.order.length) return;
+  [CONFIG.order[i], CONFIG.order[j]] = [CONFIG.order[j], CONFIG.order[i]];
+  saveConfig();
+  renderLayerList();
+}
+
+function renderLayerList() {
+  const list = document.getElementById('layer-list');
+  list.innerHTML = '';
+  const labelByKey = Object.fromEntries(LAYERS.map(l => [l.key, l.label]));
+  CONFIG.order.forEach((key, i) => {
+    const row = document.createElement('div');
+    row.className = 'layer-row';
+    const brightness = CONFIG.brightness[key] ?? 100;
+    const hexExtra = key === 'hexGrid' ? `
+      <div class="layer-brightness">
+        <span>STYLE</span>
+        <select class="layer-hexstyle" style="flex:1; background:rgba(6,10,18,0.6); color:var(--text); border:1px solid rgba(79,232,255,0.3); font-size:9px; padding:2px;">
+          <option value="pulse" ${CONFIG.hexStyle === 'pulse' ? 'selected' : ''}>Reactive Pulse (CPU/RAM)</option>
+          <option value="sweep" ${CONFIG.hexStyle === 'sweep' ? 'selected' : ''}>Radar Sweep Reveal (classic)</option>
+        </select>
+      </div>
+      <div class="layer-brightness">
+        <span>SIZE</span>
+        <input type="range" min="60" max="260" value="${Math.round(CONFIG.hexScale * 100)}" class="layer-hexsize"/>
+        <output>${Math.round(CONFIG.hexScale * 100)}%</output>
+      </div>` : '';
+    row.innerHTML = `
+      <div class="layer-top">
+        <input type="checkbox" data-key="${key}" class="layer-toggle" ${CONFIG[key] ? 'checked' : ''}/>
+        <span class="layer-label">${labelByKey[key] || key}</span>
+        <div class="layer-order-btns">
+          <button type="button" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="Move toward front">▲</button>
+          <button type="button" data-dir="1" ${i === CONFIG.order.length - 1 ? 'disabled' : ''} title="Move toward back">▼</button>
+        </div>
+      </div>
+      <div class="layer-brightness">
+        <span>BRIGHT</span>
+        <input type="range" min="0" max="100" value="${brightness}" data-key="${key}" class="layer-bright-slider"/>
+        <output>${brightness}%</output>
+      </div>${hexExtra}`;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('.layer-toggle').forEach(inp => {
+    inp.addEventListener('change', () => {
+      CONFIG[inp.dataset.key] = inp.checked;
+      saveConfig();
+    });
+  });
+  list.querySelectorAll('.layer-order-btns button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.closest('.layer-row').querySelector('.layer-toggle').dataset.key;
+      moveLayer(key, parseInt(btn.dataset.dir, 10));
+    });
+  });
+  list.querySelectorAll('.layer-bright-slider').forEach(slider => {
+    slider.addEventListener('input', () => {
+      CONFIG.brightness[slider.dataset.key] = parseInt(slider.value, 10);
+      slider.nextElementSibling.textContent = `${slider.value}%`;
+      saveConfig();
+    });
+  });
+  list.querySelectorAll('.layer-hexstyle').forEach(sel => {
+    sel.addEventListener('change', () => { CONFIG.hexStyle = sel.value; saveConfig(); });
+  });
+  list.querySelectorAll('.layer-hexsize').forEach(slider => {
+    slider.addEventListener('input', () => {
+      CONFIG.hexScale = parseInt(slider.value, 10) / 100;
+      slider.nextElementSibling.textContent = `${slider.value}%`;
+      saveConfig();
+      buildHexGrid();
+    });
+  });
+}
+function renderThemeRow() {
+  const row = document.getElementById('theme-row');
+  row.innerHTML = '';
+  Object.entries(THEMES).forEach(([key, t]) => {
+    const dot = document.createElement('div');
+    dot.className = 'theme-dot' + (CONFIG.theme === key ? ' active' : '');
+    dot.style.background = t.swatch;
+    dot.title = t.name;
+    dot.addEventListener('click', () => {
+      CONFIG.theme = key;
+      saveConfig();
+      renderThemeRow();
+    });
+    row.appendChild(dot);
+  });
+}
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const preset = PRESETS[btn.dataset.preset];
+    Object.assign(CONFIG, preset);
+    saveConfig();
+    renderModList();
+    renderLayerList();
+    syncHtmlModules();
+  });
+});
+renderModList();
+renderLayerList();
+renderThemeRow();
+syncHtmlModules();
+
+// ---------- Canvas setup ----------
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, CX, CY;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  CX = W * 0.54;
+  CY = H * 0.57;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// whole-scene 3D tilt: ambient (always on, works even if WE doesn't
+// forward real cursor position to the page) with mouse input layered
+// on top as a bonus whenever it IS available.
+const parallax = { x: 0, y: 0 };
+let mouseTiltX = 0, mouseTiltY = 0, lastRealMove = -Infinity;
+
+window.addEventListener('mousemove', (e) => {
+  mouseTiltX = (e.clientY / H - 0.5) * -4.5;
+  mouseTiltY = (e.clientX / W - 0.5) * 4.5;
+  parallax.x = (e.clientX / W - 0.5) * 20;
+  parallax.y = (e.clientY / H - 0.5) * 20;
+  lastRealMove = performance.now();
+});
+
+function updateTilt() {
+  const hasMouse = performance.now() - lastRealMove < 2000;
+  // slow independent sine drift on two axes so it never repeats identically
+  const ambientX = Math.sin(t * 0.0021) * 3.4;
+  const ambientY = Math.cos(t * 0.0016) * 4.2;
+  const tiltX = hasMouse ? mouseTiltX : ambientX;
+  const tiltY = hasMouse ? mouseTiltY : ambientY;
+  canvas.style.transform = `rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+  if (!hasMouse) {
+    parallax.x = Math.sin(t * 0.0016) * 16;
+    parallax.y = Math.cos(t * 0.0021) * 16;
+  }
+}
+
+// ---------- Audio ----------
+const BINS = 64;
+let spectrum = new Float32Array(BINS);
+let targetSpectrum = new Float32Array(BINS);
+let audioActive = false;
+let beatEnergy = 0, prevAvg = 0;
+const WAVE_LEN = 100;
+let waveHistory = new Float32Array(WAVE_LEN);
+
+if (window.wallpaperRegisterAudioListener) {
+  window.wallpaperRegisterAudioListener((audioArray) => {
+    audioActive = true;
+    document.getElementById('audio-status').innerHTML = '<span id="status-dot"></span>AUDIO LINK: ACTIVE';
+    for (let i = 0; i < BINS; i++) targetSpectrum[i] = (audioArray[i] + audioArray[i + BINS]) / 2;
+  });
+}
+let simT = 0;
+function simulateSpectrum() {
+  simT += 0.02;
+  for (let i = 0; i < BINS; i++) {
+    const base = Math.sin(simT * 1.7 + i * 0.35) * 0.5 + 0.5;
+    const kick = Math.max(0, Math.sin(simT * 2.3)) * (i < 8 ? 1 : 0.2);
+    targetSpectrum[i] = Math.max(0, base * 0.45 + kick * 0.5 - (i / BINS) * 0.15);
+  }
+}
+
+// ---------- Clock ----------
+let clockStr = '00:00:00';
+function updateClock() {
+  const now = new Date();
+  clockStr = [now.getHours(), now.getMinutes(), now.getSeconds()].map(n => String(n).padStart(2, '0')).join(':');
+  document.getElementById('date-readout').textContent =
+    now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: '2-digit' }).toUpperCase();
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ---------- Fake log content ----------
+(function initLog() {
+  const lines = ['&gt; scanning sector grid...', '&gt; uplink handshake OK', '&gt; spectrum.analyze(bins=64)',
+    '&gt; thermal check: 41.2C', '&gt; cache flush complete', '&gt; tracking_id: 0x7F3A',
+    '&gt; render pass 3 / 3', '&gt; audio.bind(system.out)', '&gt; grid sync 99.8%'];
+  document.getElementById('code-log-inner').innerHTML = lines.concat(lines).map(l => `<div>${l}</div>`).join('');
+})();
+
+// ---------- Starfield ----------
+let stars = [];
+function buildStars() {
+  const count = Math.floor((W * H) / 5200);
+  stars = [];
+  for (let i = 0; i < count; i++) {
+    stars.push({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.3 + 0.3,
+      phase: Math.random() * Math.PI * 2, speed: Math.random() * 0.02 + 0.008 });
+  }
+}
+buildStars();
+window.addEventListener('resize', buildStars);
+function drawStars() {
+  for (const s of stars) {
+    const tw = 0.35 + 0.65 * (Math.sin(t * s.speed + s.phase) * 0.5 + 0.5);
+    ctx.beginPath();
+    ctx.fillStyle = `rgba(200, 235, 255, ${tw * 0.75})`;
+    ctx.arc(s.x + parallax.x * 0.03, s.y + parallax.y * 0.03, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// ---------- Hazard stripes ----------
+function hazardStripe(x, y, w, h, alpha) {
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  ctx.strokeStyle = `rgba(79, 232, 255, ${alpha})`;
+  ctx.lineWidth = 3;
+  for (let i = -h; i < w + h; i += 10) {
+    ctx.beginPath(); ctx.moveTo(x + i, y + h); ctx.lineTo(x + i + h, y); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ---------- Radar sweep + hex grid ----------
+let hexCells = [];
+function buildHexGrid() {
+  hexCells = [];
+  const size = Math.min(W, H) * 0.028 * (CONFIG.hexScale || 1.6);
+  const hexW = size * 2, hexH = Math.sqrt(3) * size;
+  for (let row = -1; row * hexH * 0.75 < H + hexH; row++) {
+    for (let col = -1; col * hexW < W + hexW; col++) {
+      const x = col * hexW * 0.75 + (row % 2 ? hexW * 0.375 : 0);
+      const y = row * hexH * 0.75;
+      hexCells.push({ x, y, size, angle: Math.atan2(y - CY, x - CX) });
+    }
+  }
+}
+buildHexGrid();
+window.addEventListener('resize', buildHexGrid);
+function drawHex(x, y, size, alpha) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI / 3) * i;
+    const px = x + size * Math.cos(a), py = y + size * Math.sin(a);
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.globalAlpha = alpha;
+  ctx.stroke();
+}
+let sweepAngle = 0;
+function angleDiff(a, b) {
+  let d = a - b;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return Math.abs(d);
+}
+// Hex grid and radar sweep are independent layers now (separately
+// toggleable, orderable, and dimmable) but they still share the same
+// rotating sweepAngle — advanced once per frame in the main loop
+// regardless of which of the two is enabled — so the hex-reveal effect
+// still works even if the radar beam itself is turned off.
+function drawHexGrid(brightness) {
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = '#4fe8ff';
+  for (const cell of hexCells) {
+    const d = angleDiff(cell.angle, sweepAngle % (Math.PI * 2));
+    const reveal = Math.max(0, 1 - d / 0.9);
+    if (reveal <= 0.02) continue;
+    drawHex(cell.x + parallax.x * 0.05, cell.y + parallax.y * 0.05, cell.size, reveal * 0.2 * brightness);
+  }
+}
+function drawRadarSweep() {
+  ctx.save();
+  ctx.translate(CX, CY);
+  ctx.rotate(sweepAngle);
+  const beamLen = Math.min(W, H) * 0.62;
+  const g = ctx.createLinearGradient(0, 0, beamLen, 0);
+  g.addColorStop(0, 'rgba(79, 232, 255, 0.15)');
+  g.addColorStop(1, 'rgba(79, 232, 255, 0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, beamLen, -0.12, 0.12); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+// ---------- Hex grid, "Reactive Pulse" style ----------
+// Concentric hex-lit rings radiate out from the core. Ring frequency and
+// speed track live CPU load (busier system = faster heartbeat); the
+// ambient glow floor tracks RAM usage; colour shifts cool cyan -> hot
+// coral as load climbs, so the grid reads at a glance as a system-health
+// visualization rather than pure decoration. Reads sysStats, which is
+// populated by the companion stats server (see systemMonitor panel below).
+// Falls back to an audio-driven rhythm if that server isn't running, so
+// it still looks alive out of the box.
+let hexPulses = [];
+let lastPulseSpawn = 0;
+let smoothLoad = 0.3, smoothRam = 0.3; // eased toward the live reading — real instruments have inertia, raw telemetry doesn't
+function hexCellPath(x, y, size) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI / 3) * i;
+    const px = x + size * Math.cos(a), py = y + size * Math.sin(a);
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+function drawHexGridPulse(brightness) {
+  const online = typeof sysStats !== 'undefined' && sysStats.online;
+  const rawLoad = online ? Math.min(1, (sysStats.cpu || 0) / 100) : Math.min(1, 0.22 + beatEnergy * 0.55);
+  const rawRam = online ? Math.min(1, (sysStats.ram || 0) / 100) : 0.32;
+  smoothLoad += (rawLoad - smoothLoad) * 0.02;   // ~2-3s to settle after a CPU spike
+  smoothRam += (rawRam - smoothRam) * 0.01;      // even slower — memory pressure shouldn't flicker
+  const loadFrac = smoothLoad, ramFrac = smoothRam;
+
+  const spawnInterval = 130 - loadFrac * 85; // frames between pulses — busier system, faster (but bounded) rhythm
+  if (t - lastPulseSpawn > spawnInterval && hexPulses.length < 4) {
+    hexPulses.push({ r: 0 });
+    lastPulseSpawn = t;
+  }
+  const maxR = Math.max(W, H) * 0.8;
+  hexPulses.forEach(p => { p.r += 2.1 + loadFrac * 3.2; });
+  hexPulses = hexPulses.filter(p => p.r < maxR);
+
+  const cool = [79, 232, 255], hot = [255, 122, 92];
+  const cr = Math.round(cool[0] + (hot[0] - cool[0]) * loadFrac);
+  const cg = Math.round(cool[1] + (hot[1] - cool[1]) * loadFrac);
+  const cb = Math.round(cool[2] + (hot[2] - cool[2]) * loadFrac);
+  const colorStr = `${cr},${cg},${cb}`;
+
+  ctx.lineWidth = 1.1;
+  for (const cell of hexCells) {
+    const dist = Math.hypot(cell.x - CX, cell.y - CY);
+    let glow = 0;
+    for (const p of hexPulses) {
+      const d = Math.abs(dist - p.r);
+      if (d < 60) glow = Math.max(glow, 1 - d / 60);
+    }
+    const floor = 0.04 + ramFrac * 0.07; // ambient baseline rises gently with memory pressure
+    const strokeAlpha = Math.min(0.75, floor + glow * 0.4) * brightness;
+    if (strokeAlpha <= 0.015) continue;
+    const x = cell.x + parallax.x * 0.05, y = cell.y + parallax.y * 0.05;
+    hexCellPath(x, y, cell.size);
+    ctx.strokeStyle = `rgba(${colorStr}, ${strokeAlpha})`;
+    ctx.stroke();
+    if (glow > 0.45) {
+      ctx.fillStyle = `rgba(${colorStr}, ${(glow - 0.45) * 0.28 * brightness})`;
+      ctx.fill();
+    }
+  }
+}
+
+// ---------- TRUE 3D orbit rings (perspective-projected, depth-occluded) ----------
+const orbits3d = [
+  { R: 1.9, tiltX: 1.15, speed: 0.008, phase: 0 },
+  { R: 2.35, tiltX: 0.55, speed: -0.0055, phase: 2.1 },
+  { R: 1.6, tiltX: 1.55, speed: 0.011, phase: 4.3 },
+];
+const FOCAL = 4.2;
+function project3d(x, y, z, r0, sceneRot) {
+  const x1 = x * Math.cos(sceneRot) + z * Math.sin(sceneRot);
+  const z1 = -x * Math.sin(sceneRot) + z * Math.cos(sceneRot);
+  const scale = FOCAL / (FOCAL + z1);
+  return {
+    sx: CX + parallax.x * 0.2 + x1 * scale * r0,
+    sy: CY + parallax.y * 0.2 + y * scale * r0,
+    scale, z: z1,
+  };
+}
+function drawOrbits3d(r0) {
+  const th = theme();
+  const sceneRot = t * 0.0012;
+  orbits3d.forEach((o, idx) => {
+    const colorRgb = idx % 2 === 0 ? '79, 232, 255' : th.accent;
+    // ring path drawn as many short segments, each shaded by its own depth
+    // and hidden where it truly passes behind the sphere
+    let prev = null;
+    for (let i = 0; i <= 90; i++) {
+      const a = (i / 90) * Math.PI * 2;
+      const x0 = Math.cos(a) * o.R, z0 = Math.sin(a) * o.R;
+      const y1 = z0 * Math.sin(o.tiltX), z1 = z0 * Math.cos(o.tiltX);
+      const p = project3d(x0, y1, z1, r0, sceneRot);
+      if (prev) {
+        const distFromCore = Math.hypot(p.sx - (CX + parallax.x * 0.15), p.sy - (CY + parallax.y * 0.15));
+        const behindSphere = distFromCore < r0 * 1.02 && p.z < 0;
+        const depthFade = Math.max(0.08, Math.min(1, (p.z + o.R) / (o.R * 2)));
+        const alpha = behindSphere ? depthFade * 0.1 : depthFade * 0.6;
+        ctx.strokeStyle = `rgba(${colorRgb}, ${alpha})`;
+        ctx.lineWidth = 0.6 + depthFade * 1.9;
+        ctx.beginPath();
+        ctx.moveTo(prev.sx, prev.sy);
+        ctx.lineTo(p.sx, p.sy);
+        ctx.stroke();
+      }
+      prev = p;
+    }
+
+    // comet particle with trail, depth-occluded behind the sphere
+    const angle = t * o.speed + o.phase;
+    for (let k = 0; k < 10; k++) {
+      const a = angle - k * 0.05;
+      const x0 = Math.cos(a) * o.R, z0 = Math.sin(a) * o.R;
+      const y1 = z0 * Math.sin(o.tiltX);
+      const z1 = z0 * Math.cos(o.tiltX);
+      const p = project3d(x0, y1, z1, r0, sceneRot);
+      const distFromCore = Math.hypot(p.sx - (CX + parallax.x * 0.15), p.sy - (CY + parallax.y * 0.15));
+      const occluded = distFromCore < r0 * 1.05 && p.z < 0;
+      if (occluded) continue;
+      const depthFade = Math.max(0.15, Math.min(1, (p.z + o.R) / (o.R * 2)));
+      const alpha = (1 - k / 10) * (0.5 + beatEnergy * 0.4) * depthFade;
+      const size = (k === 0 ? 2.8 : 1.3) * (0.6 + depthFade * 0.6);
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(${colorRgb}, ${alpha * 0.75})`;
+      ctx.arc(p.sx, p.sy, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+}
+
+// ---------- Core sphere (theme-tinted, textured) ----------
+function drawCore(r0) {
+  const th = theme();
+  const cx = CX + parallax.x * 0.15, cy = CY + parallax.y * 0.15;
+  const r = r0 * (1 + beatEnergy * 0.18);
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
+
+  const base = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+  base.addColorStop(0, `rgba(${th.core}, 0.95)`);
+  base.addColorStop(0.4, `rgba(${th.core}, 0.75)`);
+  base.addColorStop(1, `rgba(${th.core}, 0.35)`);
+  ctx.fillStyle = base;
+  ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 4; i++) {
+    const a = t * (0.004 + i * 0.0011) + i * 2.1;
+    const bx = cx + Math.cos(a) * r * 0.3;
+    const by = cy + Math.sin(a * 1.3) * r * 0.3;
+    const br = r * (0.5 + 0.15 * Math.sin(t * 0.01 + i));
+    const blob = ctx.createRadialGradient(bx, by, 0, bx, by, br);
+    blob.addColorStop(0, `rgba(${th.accent}, ${0.16 + beatEnergy * 0.2})`);
+    blob.addColorStop(1, `rgba(${th.accent}, 0)`);
+    ctx.fillStyle = blob;
+    ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+  ctx.lineWidth = 1;
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + i * r * 0.16, r * 0.98, r * 0.22, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // longitude meridians, tinted in the accent color for a duotone wireframe globe
+  for (let i = 0; i < 4; i++) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate((i / 4) * Math.PI);
+    ctx.strokeStyle = i % 2 === 0 ? 'rgba(255, 255, 255, 0.13)' : `rgba(${th.accent}, 0.2)`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 0.24, r * 0.98, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  const spec = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, 0, cx - r * 0.35, cy - r * 0.35, r * 0.6);
+  spec.addColorStop(0, 'rgba(255, 255, 255, 0.28)');
+  spec.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  ctx.fillStyle = spec;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  const glow = ctx.createRadialGradient(cx, cy, r * 0.8, cx, cy, r * 1.6);
+  glow.addColorStop(0, `rgba(${th.core}, ${0.16 + beatEnergy * 0.15})`);
+  glow.addColorStop(1, `rgba(${th.core}, 0)`);
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(cx, cy, r * 1.6, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.strokeStyle = 'rgba(79, 232, 255, 0.4)';
+  ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.arc(0, 0, r * 1.22, 0, Math.PI * 2); ctx.stroke();
+  for (let i = 0; i < 60; i++) {
+    const a = (i / 60) * Math.PI * 2;
+    const len = i % 5 === 0 ? 7 : 3;
+    ctx.globalAlpha = i % 5 === 0 ? 0.5 : 0.25;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * r * 1.22, Math.sin(a) * r * 1.22);
+    ctx.lineTo(Math.cos(a) * (r * 1.22 - len), Math.sin(a) * (r * 1.22 - len));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawClock(r0) {
+  ctx.save();
+  ctx.translate(CX + parallax.x * 0.1, CY + parallax.y * 0.1 - r0 * 1.85);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `700 ${Math.min(W, H) * 0.05}px Orbitron, sans-serif`;
+  ctx.fillStyle = 'rgba(223, 247, 255, 0.92)';
+  ctx.shadowColor = '#4fe8ff';
+  ctx.shadowBlur = 14 + beatEnergy * 14;
+  ctx.fillText(clockStr, 0, 0);
+  ctx.shadowBlur = 0;
+  ctx.font = `500 ${Math.min(W, H) * 0.012}px 'Share Tech Mono', monospace`;
+  ctx.fillStyle = 'rgba(79, 232, 255, 0.5)';
+  ctx.fillText('S Y S T E M   C L O C K', 0, Math.min(W, H) * 0.032);
+  ctx.restore();
+}
+
+// ---------- Signal distribution panel ----------
+function drawHistogramPanel() {
+  const panelW = Math.min(W * 0.42, 480);
+  const panelH = Math.min(H, W) * 0.09;
+  const x0 = CX - panelW * 0.42;
+  const y0 = H - 70 - panelH;
+  for (let i = 0; i < WAVE_LEN - 1; i++) waveHistory[i] = waveHistory[i + 1];
+  let e = 0; for (let i = 0; i < 16; i++) e += spectrum[i];
+  waveHistory[WAVE_LEN - 1] = e / 16;
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(79, 232, 255, 0.16)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x0, y0, panelW, panelH);
+  ctx.font = "9.5px 'Share Tech Mono', monospace";
+  ctx.fillStyle = 'rgba(79, 232, 255, 0.4)';
+  ctx.fillText('SIGNAL DISTRIBUTION', x0 + 6, y0 - 6);
+  ctx.beginPath();
+  ctx.moveTo(x0, y0 + panelH);
+  for (let i = 0; i < WAVE_LEN; i++) {
+    const px = x0 + (i / (WAVE_LEN - 1)) * panelW;
+    const amp = Math.min(1, waveHistory[i] * 1.7);
+    ctx.lineTo(px, y0 + panelH - amp * (panelH - 6));
+  }
+  ctx.lineTo(x0 + panelW, y0 + panelH);
+  ctx.closePath();
+  const g = ctx.createLinearGradient(0, y0, 0, y0 + panelH);
+  g.addColorStop(0, 'rgba(79, 232, 255, 0.5)');
+  g.addColorStop(1, 'rgba(79, 232, 255, 0.04)');
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(180, 245, 255, 0.55)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (let i = 0; i < WAVE_LEN; i++) {
+    const px = x0 + (i / (WAVE_LEN - 1)) * panelW;
+    const amp = Math.min(1, waveHistory[i] * 1.7);
+    const py = y0 + panelH - amp * (panelH - 6);
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ---------- Gauge row: real CPU / RAM / GPU / NET (companion script) ----------
+// Same data source as the SYSTEM MONITOR panel, shown as compact radial
+// dials instead of bars — a quick-glance alternative rather than another
+// fake spectrum visualization. Reads OFFLINE, matching that panel's
+// honesty policy, if the stats server isn't reachable.
+const gaugeLabels = ['CPU', 'RAM', 'GPU', 'NET'];
+const NET_GAUGE_CAP_MBS = 15; // combined up+down MB/s treated as "100%" on the NET dial
+function drawGaugeRow() {
+  const th = theme();
+  const r = Math.min(W, H) * 0.028;
+  const gap = r * 2.6;
+  const x0 = 40 + r + 4;
+  const y0 = H - 66 - r;
+  const online = sysStats.online;
+
+  if (!online) {
+    ctx.save();
+    ctx.font = "8px 'Share Tech Mono', monospace";
+    ctx.fillStyle = 'rgba(255, 180, 84, 0.7)';
+    ctx.textAlign = 'left';
+    ctx.fillText('GAUGES OFFLINE — start stats server', x0 - r - 4, y0 + r + 22);
+    ctx.restore();
+  }
+
+  const rawVals = [sysStats.cpu, sysStats.ram, sysStats.gpu,
+    (sysStats.netUp !== null && sysStats.netUp !== undefined) ? Math.min(100, ((sysStats.netUp + sysStats.netDown) / NET_GAUGE_CAP_MBS) * 100) : null];
+
+  for (let i = 0; i < 4; i++) {
+    const x = x0 + i * gap;
+    const raw = online ? rawVals[i] : null;
+    const known = raw !== null && raw !== undefined;
+    const frac = known ? Math.min(1, raw / 100) : 0;
+    ctx.save();
+    ctx.translate(x, y0);
+    ctx.strokeStyle = 'rgba(79, 232, 255, 0.16)';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0, 0, r, -Math.PI / 2, Math.PI * 1.5); ctx.stroke();
+    if (known) {
+      ctx.strokeStyle = frac > 0.8 ? 'rgba(255, 92, 92, 0.85)' : `rgba(${th.accent}, 0.85)`;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(0, 0, r, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2); ctx.stroke();
+      ctx.font = "7px 'Share Tech Mono', monospace";
+      ctx.fillStyle = 'rgba(200, 235, 255, 0.75)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${Math.round(raw)}%`, 0, 0);
+    }
+    ctx.font = "7.5px 'Share Tech Mono', monospace";
+    ctx.fillStyle = known ? 'rgba(79, 232, 255, 0.5)' : 'rgba(79, 232, 255, 0.25)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(gaugeLabels[i], 0, r + 11);
+    ctx.restore();
+  }
+}
+
+// ---------- Compass dial: real wind bearing + speed (Open-Meteo) ----------
+// Needle points at the live wind direction (meteorological convention —
+// the direction the wind is blowing FROM), eased smoothly toward the
+// latest reading rather than snapping. Shows OFFLINE-style dashes while
+// the weather fetch is still loading or failed, same honesty policy as
+// the system monitor panel.
+let dialAngle = 0;
+function drawCompassDial() {
+  const th = theme();
+  const r = Math.min(W, H) * 0.05;
+  const x = W - 48 - r - 18;
+  const y = 40 + r + 60;
+  const hasWind = weather.state === 'ok' && weather.windDir !== null && weather.windDir !== undefined;
+  if (hasWind) {
+    const targetAngle = (weather.windDir - 90) * (Math.PI / 180); // 0deg(N) drawn pointing up
+    let diff = targetAngle - dialAngle;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    dialAngle += diff * 0.03;
+  }
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.strokeStyle = 'rgba(79, 232, 255, 0.35)';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+  const compassPts = ['N', 'E', 'S', 'W'];
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2 - Math.PI / 2;
+    const len = i % 6 === 0 ? 7 : 3.5;
+    ctx.globalAlpha = i % 6 === 0 ? 0.6 : 0.3;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+    ctx.lineTo(Math.cos(a) * (r - len), Math.sin(a) * (r - len));
+    ctx.stroke();
+    if (i % 6 === 0) {
+      ctx.font = "7px 'Share Tech Mono', monospace";
+      ctx.fillStyle = 'rgba(79, 232, 255, 0.5)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(compassPts[i / 6], Math.cos(a) * (r - len - 6), Math.sin(a) * (r - len - 6));
+    }
+  }
+  ctx.globalAlpha = 1;
+  if (hasWind) {
+    ctx.save();
+    ctx.rotate(dialAngle + Math.PI / 2);
+    ctx.fillStyle = `rgba(${th.accent}, 0.85)`;
+    ctx.beginPath();
+    ctx.moveTo(0, -r - 9); ctx.lineTo(-4, -r + 1); ctx.lineTo(4, -r + 1); ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.font = "9px 'Share Tech Mono', monospace";
+  ctx.fillStyle = 'rgba(79, 232, 255, 0.5)';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('WIND', 0, r + 16);
+  ctx.font = "8px 'Share Tech Mono', monospace";
+  if (weather.state === 'loading') {
+    ctx.fillStyle = 'rgba(79, 232, 255, 0.4)';
+    ctx.fillText('...', 0, r + 28);
+  } else if (weather.state === 'error') {
+    ctx.fillStyle = 'rgba(255, 120, 120, 0.7)';
+    ctx.fillText('UNAVAILABLE', 0, r + 28);
+  } else {
+    ctx.fillStyle = 'rgba(200, 235, 255, 0.6)';
+    ctx.fillText(`${Math.round(weather.windDir)}° · ${Math.round(weather.windSpeed)} km/h`, 0, r + 28);
+  }
+  ctx.restore();
+}
+
+// ---------- Peak alert cluster ----------
+function hexPath(cx, cy, size) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI / 3) * i;
+    const px = cx + size * Math.cos(a), py = cy + size * Math.sin(a);
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+let alertAlpha = 0;
+function drawAlert(brightness) {
+  if (beatEnergy > 0.5) alertAlpha = Math.min(1, alertAlpha + 0.15);
+  else alertAlpha = Math.max(0, alertAlpha - 0.03);
+  if (alertAlpha <= 0.01) return;
+  const x = W - 210, y = H - 150;
+  const offsets = [[0,0],[1.75,-1],[1.75,1],[-1.75,-1],[-1.75,1],[0,-2],[0,2]];
+  ctx.save();
+  ctx.globalAlpha = alertAlpha * (brightness ?? 1);
+  ctx.strokeStyle = 'rgba(255, 92, 92, 0.8)';
+  ctx.lineWidth = 1.1;
+  offsets.forEach(([ox, oy]) => { hexPath(x + ox * 9, y + oy * 7.65, 7.65); ctx.stroke(); });
+  ctx.strokeRect(x - 62, y + 26, 118, 22);
+  ctx.font = "9px 'Share Tech Mono', monospace";
+  ctx.fillStyle = 'rgba(255, 120, 120, 0.9)';
+  ctx.fillText('⚠ PEAK LEVEL', x - 56, y + 40);
+  ctx.restore();
+}
+
+// ---------- Identity scan (point cloud) ----------
+function buildIdentityPoints() {
+  const pts = [];
+  for (let i = 0; i < 170; i++) {
+    const theta = Math.random() * Math.PI, phi = Math.random() * Math.PI * 2;
+    pts.push({
+      x: Math.sin(theta) * Math.cos(phi),
+      y: -Math.cos(theta) * 1.25 + 0.1,
+      z: Math.sin(theta) * Math.sin(phi),
+    });
+  }
+  for (let i = 0; i < 110; i++) {
+    const theta = Math.random() * Math.PI, phi = Math.random() * Math.PI * 2;
+    const y = 0.5 * Math.cos(theta) + 1.5;
+    if (y < 1.1) continue;
+    pts.push({ x: 1.8 * Math.sin(theta) * Math.cos(phi), y, z: 0.9 * Math.sin(theta) * Math.sin(phi) });
+  }
+  return pts;
+}
+const identityPoints = buildIdentityPoints();
+function drawIdentityScan() {
+  const th = theme();
+  const panelW = 232, panelH = 292;
+  const x0 = W - panelW - 40, y0 = CY - panelH / 2;
+  const rotY = t * 0.005;
+  ctx.save();
+
+  ctx.strokeStyle = 'rgba(79, 232, 255, 0.2)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x0, y0, panelW, panelH);
+  const bl = 13;
+  ctx.strokeStyle = 'rgba(79, 232, 255, 0.55)';
+  ctx.lineWidth = 1.4;
+  [[x0, y0, 1, 1], [x0 + panelW, y0, -1, 1], [x0, y0 + panelH, 1, -1], [x0 + panelW, y0 + panelH, -1, -1]].forEach(([cx0, cy0, dx, dy]) => {
+    ctx.beginPath();
+    ctx.moveTo(cx0, cy0 + bl * dy); ctx.lineTo(cx0, cy0); ctx.lineTo(cx0 + bl * dx, cy0);
+    ctx.stroke();
+  });
+
+  ctx.font = "10px 'Share Tech Mono', monospace";
+  ctx.fillStyle = 'rgba(79, 232, 255, 0.55)';
+  ctx.textAlign = 'left';
+  ctx.fillText('IDENTITY SCAN', x0 + 8, y0 - 8);
+  ctx.font = "8px 'Share Tech Mono', monospace";
+  ctx.fillStyle = 'rgba(79, 232, 255, 0.32)';
+  ctx.fillText('BIOMETRIC POINT CLOUD', x0 + 8, y0 + panelH + 13);
+
+  const cx = x0 + panelW / 2, cy = y0 + panelH / 2 - 16, scale = 48;
+
+  // faint containment ellipse for a depth cue behind the point cloud
+  ctx.strokeStyle = 'rgba(79, 232, 255, 0.12)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, scale * 1.55, scale * 1.85, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // depth-sort so nearer points draw over farther ones — reads as a real
+  // volume instead of a flat scatter of dots
+  const projected = identityPoints.map(p => {
+    const x1 = p.x * Math.cos(rotY) + p.z * Math.sin(rotY);
+    const z1 = -p.x * Math.sin(rotY) + p.z * Math.cos(rotY);
+    const persp = 3.2 / (3.2 + z1);
+    return { sx: cx + x1 * scale * persp, sy: cy + p.y * scale * persp * 0.95, persp, z1 };
+  }).sort((a, b) => a.z1 - b.z1);
+
+  projected.forEach(p => {
+    const bright = 0.22 + Math.max(0, (p.z1 + 1) / 2) * 0.65;
+    ctx.beginPath();
+    ctx.fillStyle = `rgba(${th.accent}, ${bright})`;
+    ctx.arc(p.sx, p.sy, 1.3 * p.persp, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // soft trailing scanline (fading copies) instead of one hard bar
+  const scanY = y0 + 14 + (Math.sin(t * 0.01) * 0.5 + 0.5) * (panelH - 28);
+  for (let i = 0; i < 4; i++) {
+    const trailY = scanY - i * 5;
+    if (trailY < y0 + 10) continue;
+    ctx.strokeStyle = `rgba(79, 232, 255, ${0.42 - i * 0.09})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x0 + 6, trailY); ctx.lineTo(x0 + panelW - 6, trailY); ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(180, 245, 255, 0.6)';
+  ctx.beginPath(); ctx.arc(x0 + panelW - 6, scanY, 1.6, 0, Math.PI * 2); ctx.fill();
+
+  const conf = Math.round(82 + beatEnergy * 15);
+  ctx.font = "8.5px 'Share Tech Mono', monospace";
+  ctx.fillStyle = 'rgba(79, 232, 255, 0.5)';
+  ctx.textAlign = 'left';
+  ctx.fillText(`POINTS ${identityPoints.length}`, x0 + 8, y0 + panelH - 8);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = conf > 90 ? 'rgba(120, 255, 170, 0.85)' : 'rgba(79, 232, 255, 0.6)';
+  ctx.fillText(conf > 90 ? `MATCH ${conf}%` : `SCANNING ${conf}%`, x0 + panelW - 8, y0 + panelH - 8);
+
+  ctx.restore();
+}
+
+// ---------- Rotating Earth (point-cloud globe, same panel language as Identity Scan) ----------
+function buildEarthPoints() {
+  const pts = [];
+  // rough lat/lon "blobs" approximating continents — not survey-accurate,
+  // just enough to read as a world map once projected onto a sphere
+  const landmasses = [
+    { lat: 40, lon: -100, halfLat: 22, halfLon: 25 },  // N. America
+    { lat: -15, lon: -60, halfLat: 25, halfLon: 15 },  // S. America
+    { lat: 50, lon: 15, halfLat: 15, halfLon: 20 },    // Europe
+    { lat: 5, lon: 20, halfLat: 30, halfLon: 20 },     // Africa
+    { lat: 45, lon: 90, halfLat: 28, halfLon: 45 },    // Asia
+    { lat: -25, lon: 135, halfLat: 10, halfLon: 15 },  // Australia
+  ];
+  landmasses.forEach(land => {
+    const density = Math.round((land.halfLat * land.halfLon) / 9);
+    for (let i = 0; i < density; i++) {
+      // rejection-sample within an ellipse so blobs read as rounded coastlines
+      let u, v;
+      do { u = (Math.random() * 2 - 1); v = (Math.random() * 2 - 1); } while (u * u + v * v > 1);
+      const latDeg = land.lat + v * land.halfLat;
+      const lonDeg = land.lon + u * land.halfLon;
+      const latR = latDeg * Math.PI / 180, lonR = lonDeg * Math.PI / 180;
+      pts.push({
+        x: Math.cos(latR) * Math.cos(lonR),
+        y: Math.sin(latR),
+        z: Math.cos(latR) * Math.sin(lonR),
+        node: false,
+      });
+    }
+  });
+  // a handful of pulsing "network node" markers on top of the land points
+  const nodeSpots = [{ lat: 6.5, lon: 3.4 }, { lat: 51.5, lon: -0.1 }, { lat: 35.7, lon: 139.7 }, { lat: 40.7, lon: -74 }];
+  nodeSpots.forEach(s => {
+    const latR = s.lat * Math.PI / 180, lonR = s.lon * Math.PI / 180;
+    pts.push({ x: Math.cos(latR) * Math.cos(lonR), y: Math.sin(latR), z: Math.cos(latR) * Math.sin(lonR), node: true });
+  });
+  return pts;
+}
+const earthPoints = buildEarthPoints();
+function drawEarthMap() {
+  const th = theme();
+  const panelW = 232, panelH = 232;
+  const idW = 232, idH = 292; // must match drawIdentityScan's panel size to stack cleanly beneath it
+  const x0 = W - panelW - 40, y0 = CY - idH / 2 + idH + 46;
+  const rotY = t * 0.0035;
+  ctx.save();
+
+  ctx.strokeStyle = 'rgba(79, 232, 255, 0.2)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x0, y0, panelW, panelH);
+  const bl = 13;
+  ctx.strokeStyle = 'rgba(79, 232, 255, 0.55)';
+  ctx.lineWidth = 1.4;
+  [[x0, y0, 1, 1], [x0 + panelW, y0, -1, 1], [x0, y0 + panelH, 1, -1], [x0 + panelW, y0 + panelH, -1, -1]].forEach(([cx0, cy0, dx, dy]) => {
+    ctx.beginPath();
+    ctx.moveTo(cx0, cy0 + bl * dy); ctx.lineTo(cx0, cy0); ctx.lineTo(cx0 + bl * dx, cy0);
+    ctx.stroke();
+  });
+
+  ctx.font = "10px 'Share Tech Mono', monospace";
+  ctx.fillStyle = 'rgba(79, 232, 255, 0.55)';
+  ctx.textAlign = 'left';
+  ctx.fillText('GLOBAL TRACKING', x0 + 8, y0 - 8);
+  ctx.font = "8px 'Share Tech Mono', monospace";
+  ctx.fillStyle = 'rgba(79, 232, 255, 0.32)';
+  ctx.fillText('LIVE NODE MAP', x0 + 8, y0 + panelH + 13);
+
+  const cx = x0 + panelW / 2, cy = y0 + panelH / 2, scale = 78;
+
+  // latitude/longitude wire grid for a real globe reference frame
+  ctx.strokeStyle = 'rgba(79, 232, 255, 0.1)';
+  ctx.lineWidth = 1;
+  for (let i = 1; i < 4; i++) {
+    const ringR = Math.sin((i / 4) * Math.PI) * scale;
+    const ringY = Math.cos((i / 4) * Math.PI) * scale;
+    ctx.beginPath(); ctx.ellipse(cx, cy + ringY, ringR, ringR * 0.28, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.beginPath(); ctx.ellipse(cx, cy, scale, scale, 0, 0, Math.PI * 2); ctx.stroke();
+
+  const projected = earthPoints.map(p => {
+    const x1 = p.x * Math.cos(rotY) + p.z * Math.sin(rotY);
+    const z1 = -p.x * Math.sin(rotY) + p.z * Math.cos(rotY);
+    const persp = 3.4 / (3.4 + z1);
+    return { sx: cx + x1 * scale * persp, sy: cy - p.y * scale * persp, persp, z1, node: p.node };
+  }).sort((a, b) => a.z1 - b.z1);
+
+  // connection arcs between the front-facing pulsing nodes
+  const frontNodes = projected.filter(p => p.node && p.z1 > -0.2);
+  ctx.strokeStyle = `rgba(${th.accent}, 0.3)`;
+  ctx.lineWidth = 1;
+  for (let i = 0; i < frontNodes.length; i++) {
+    for (let j = i + 1; j < frontNodes.length; j++) {
+      const a = frontNodes[i], b = frontNodes[j];
+      const midY = Math.min(a.sy, b.sy) - 16;
+      ctx.beginPath();
+      ctx.moveTo(a.sx, a.sy);
+      ctx.quadraticCurveTo((a.sx + b.sx) / 2, midY, b.sx, b.sy);
+      ctx.stroke();
+    }
+  }
+
+  projected.forEach(p => {
+    const bright = 0.2 + Math.max(0, (p.z1 + 1) / 2) * 0.65;
+    if (p.node) {
+      const pulse = 0.6 + 0.4 * Math.sin(t * 0.05 + p.sx * 0.1);
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(${th.accent}, ${bright * pulse})`;
+      ctx.arc(p.sx, p.sy, 2.4 * p.persp, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(120, 235, 200, ${bright})`;
+      ctx.arc(p.sx, p.sy, 1.2 * p.persp, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+
+  const scanY = y0 + 14 + (Math.sin(t * 0.009) * 0.5 + 0.5) * (panelH - 28);
+  for (let i = 0; i < 4; i++) {
+    const trailY = scanY - i * 5;
+    if (trailY < y0 + 10) continue;
+    ctx.strokeStyle = `rgba(79, 232, 255, ${0.32 - i * 0.07})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x0 + 6, trailY); ctx.lineTo(x0 + panelW - 6, trailY); ctx.stroke();
+  }
+
+  ctx.font = "8.5px 'Share Tech Mono', monospace";
+  ctx.fillStyle = 'rgba(79, 232, 255, 0.5)';
+  ctx.textAlign = 'left';
+  ctx.fillText(`NODES ${nodeSpotsCount}`, x0 + 8, y0 + panelH - 8);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(79, 232, 255, 0.6)';
+  ctx.fillText(`ROT ${Math.round((rotY * 180 / Math.PI) % 360)}°`, x0 + panelW - 8, y0 + panelH - 8);
+
+  ctx.restore();
+}
+const nodeSpotsCount = 4;
+
+// ---------- Foreground bokeh dust (depth-of-field cue) ----------
+let bokeh = [];
+function buildBokeh() {
+  bokeh = [];
+  for (let i = 0; i < 16; i++) {
+    bokeh.push({
+      x: Math.random() * W, y: Math.random() * H,
+      r: 18 + Math.random() * 46,
+      vx: (Math.random() - 0.5) * 0.15, vy: (Math.random() - 0.5) * 0.15,
+      phase: Math.random() * Math.PI * 2,
+      colorIdx: Math.random() < 0.5 ? 0 : 1,
+    });
+  }
+}
+buildBokeh();
+window.addEventListener('resize', buildBokeh);
+function drawBokeh() {
+  const th = theme();
+  const colors = ['79,232,255', th.accent];
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  bokeh.forEach(b => {
+    b.x += b.vx; b.y += b.vy;
+    if (b.x < -60) b.x = W + 60; if (b.x > W + 60) b.x = -60;
+    if (b.y < -60) b.y = H + 60; if (b.y > H + 60) b.y = -60;
+    const tw = 0.5 + 0.5 * Math.sin(t * 0.006 + b.phase);
+    const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
+    g.addColorStop(0, `rgba(${colors[b.colorIdx]}, ${0.055 * tw})`);
+    g.addColorStop(1, `rgba(${colors[b.colorIdx]}, 0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+  });
+  ctx.restore();
+}
+
+// ---------- Real weather (Open-Meteo, no API key needed) ----------
+const WMO_COND = {
+  0: 'Clear', 1: 'Mainly Clear', 2: 'Partly Cloudy', 3: 'Overcast',
+  45: 'Fog', 48: 'Fog', 51: 'Drizzle', 53: 'Drizzle', 55: 'Drizzle',
+  61: 'Light Rain', 63: 'Rain', 65: 'Heavy Rain', 71: 'Snow', 73: 'Snow',
+  80: 'Showers', 81: 'Showers', 82: 'Heavy Showers', 95: 'Thunderstorm',
+};
+let weather = { temp: null, cond: '', windSpeed: null, windDir: null, state: 'loading' };
+function pollWeather() {
+  // Lagos, Nigeria (Ikeja) coordinates — change these if you're elsewhere
+  fetch('https://api.open-meteo.com/v1/forecast?latitude=6.6018&longitude=3.3515&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&timezone=auto')
+    .then(r => r.json())
+    .then(d => {
+      weather.temp = d.current.temperature_2m;
+      weather.cond = WMO_COND[d.current.weather_code] || 'Unknown';
+      weather.windSpeed = d.current.wind_speed_10m;
+      weather.windDir = d.current.wind_direction_10m;
+      weather.state = 'ok';
+    })
+    .catch(() => { weather.state = 'error'; });
+}
+pollWeather();
+setInterval(pollWeather, 10 * 60 * 1000);
+
+function drawWeather() {
+  const w = 150, h = 66, x0 = W - 48 - w, y0 = 96;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(79, 232, 255, 0.16)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x0, y0, w, h);
+  ctx.font = "9px 'Share Tech Mono', monospace";
+  ctx.fillStyle = 'rgba(79, 232, 255, 0.4)';
+  ctx.fillText('WEATHER — LAGOS', x0 + 6, y0 - 6);
+  if (weather.state === 'loading') {
+    ctx.fillStyle = 'rgba(79, 232, 255, 0.4)';
+    ctx.fillText('...', x0 + 8, y0 + 30);
+  } else if (weather.state === 'error') {
+    ctx.fillStyle = 'rgba(255, 120, 120, 0.7)';
+    ctx.fillText('UNAVAILABLE (offline?)', x0 + 8, y0 + 30);
+  } else {
+    ctx.font = "700 19px Orbitron, sans-serif";
+    ctx.fillStyle = 'rgba(223, 247, 255, 0.92)';
+    ctx.fillText(`${Math.round(weather.temp)}°C`, x0 + 8, y0 + 30);
+    ctx.font = "9px 'Share Tech Mono', monospace";
+    ctx.fillStyle = 'rgba(79, 232, 255, 0.55)';
+    ctx.fillText(weather.cond, x0 + 8, y0 + 48);
+  }
+  ctx.restore();
+}
+
+// ---------- Real system stats (from local companion script) ----------
+// Requires sentinel_stats_server.py running on this PC — see the
+// separate download. Honestly shows OFFLINE if it isn't reachable
+// rather than falling back to fake numbers.
+let sysStats = { cpu: null, gpu: null, ram: null, netUp: null, netDown: null, online: false };
+function pollSystemStats() {
+  fetch('http://127.0.0.1:5115/stats', { cache: 'no-store' })
+    .then(r => r.json())
+    .then(d => { sysStats = Object.assign({}, d, { online: true }); })
+    .catch(() => { sysStats.online = false; });
+}
+pollSystemStats();
+setInterval(pollSystemStats, 2000);
+
+function drawSystemPanel() {
+  const x0 = 48, y0 = 210, w = 200;
+  const h = sysStats.online ? 108 : 66;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(79, 232, 255, 0.16)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x0, y0, w, h);
+  ctx.font = "9.5px 'Share Tech Mono', monospace";
+  ctx.fillStyle = 'rgba(79, 232, 255, 0.4)';
+  ctx.fillText('SYSTEM MONITOR', x0 + 6, y0 - 6);
+
+  if (!sysStats.online) {
+    ctx.font = "9px 'Share Tech Mono', monospace";
+    ctx.fillStyle = 'rgba(255, 180, 84, 0.75)';
+    ctx.fillText('OFFLINE — start stats server', x0 + 8, y0 + 24);
+    ctx.fillStyle = 'rgba(79, 232, 255, 0.4)';
+    ctx.fillText('run sentinel_stats_server.py', x0 + 8, y0 + 40);
+    ctx.fillText('(expects localhost:5115)', x0 + 8, y0 + 54);
+    ctx.restore();
+    return;
+  }
+
+  const rows = [['CPU', sysStats.cpu], ['GPU', sysStats.gpu], ['RAM', sysStats.ram]];
+  rows.forEach(([label, val], i) => {
+    if (val === null || val === undefined) return;
+    const ry = y0 + 16 + i * 22;
+    const barX = x0 + 40, barW = w - 90;
+    ctx.font = "9px 'Share Tech Mono', monospace";
+    ctx.fillStyle = 'rgba(79, 232, 255, 0.55)';
+    ctx.fillText(label, x0 + 6, ry + 7);
+    ctx.strokeStyle = 'rgba(79, 232, 255, 0.2)';
+    ctx.strokeRect(barX, ry, barW, 8);
+    ctx.fillStyle = val > 80 ? 'rgba(255, 92, 92, 0.8)' : 'rgba(79, 232, 255, 0.7)';
+    ctx.fillRect(barX, ry, barW * Math.min(1, val / 100), 8);
+    ctx.fillStyle = 'rgba(200, 235, 255, 0.7)';
+    ctx.fillText(`${Math.round(val)}%`, x0 + w - 34, ry + 7);
+  });
+  ctx.font = "8.5px 'Share Tech Mono', monospace";
+  ctx.fillStyle = 'rgba(79, 232, 255, 0.45)';
+  const down = (sysStats.netDown || 0).toFixed(1), up = (sysStats.netUp || 0).toFixed(1);
+  ctx.fillText(`NET ↓${down} MB/s  ↑${up} MB/s`, x0 + 6, y0 + 16 + 3 * 22 + 4);
+  ctx.restore();
+}
+
+// ---------- Scattered labels ----------
+const labelAnchors = [{ rx: 0.05, ry: -1.65 }, { rx: 2.55, ry: -0.2 }, { rx: -1.9, ry: 0.9 }];
+function drawScatteredLabels(r0) {
+  ctx.save();
+  ctx.font = "9px 'Share Tech Mono', monospace";
+  ctx.fillStyle = 'rgba(79, 232, 255, 0.4)';
+  labelAnchors.forEach((a, i) => {
+    const x = CX + a.rx * r0, y = CY + a.ry * r0;
+    const n1 = 20 + Math.floor((Math.sin(t * 0.01 + i) * 0.5 + 0.5) * 79);
+    const n2 = 10 + Math.floor((Math.cos(t * 0.013 + i * 2) * 0.5 + 0.5) * 89);
+    ctx.fillText(`[${n1}] [${n2}]`, x, y);
+  });
+  ctx.restore();
+}
+
+// ---------- Layer draw dispatch ----------
+// currentR0 is refreshed once per frame so layer closures below can read it.
+let currentR0 = 0;
+const layerDrawFns = {
+  starfield: () => drawStars(),
+  hexGrid: (b) => { CONFIG.hexStyle === 'sweep' ? drawHexGrid(b) : drawHexGridPulse(b); },
+  radarSweep: () => drawRadarSweep(),
+  hazard: () => {
+    hazardStripe(W * 0.5 - 90, 16, 130, 9, 0.14);
+    hazardStripe(W - 230, H - 40, 130, 9, 0.14);
+  },
+  core: () => { drawOrbits3d(currentR0); drawCore(currentR0); },
+  clock: () => drawClock(currentR0),
+  distribution: () => drawHistogramPanel(),
+  gauges: () => drawGaugeRow(),
+  compass: () => drawCompassDial(),
+  alert: (b) => drawAlert(b),
+  identityScan: () => drawIdentityScan(),
+  earthMap: () => drawEarthMap(),
+  weather: () => drawWeather(),
+  systemMonitor: () => drawSystemPanel(),
+  scatteredLabels: () => drawScatteredLabels(currentR0),
+};
+function drawLayer(key) {
+  if (!CONFIG[key]) return;
+  const fn = layerDrawFns[key];
+  if (!fn) return;
+  const b = getBrightness(key);
+  ctx.save();
+  ctx.globalAlpha = b;
+  fn(b);
+  ctx.restore();
+}
+
+// ---------- Main loop ----------
+let t = 0;
+function frame() {
+  t += 1;
+  updateTilt();
+  ctx.clearRect(0, 0, W, H);
+  if (!audioActive) simulateSpectrum();
+  sweepAngle += 0.014; // always advances, independent of hexGrid/radarSweep toggles
+
+  let avg = 0;
+  for (let i = 0; i < BINS; i++) {
+    spectrum[i] += (targetSpectrum[i] - spectrum[i]) * 0.25;
+    avg += spectrum[i];
+  }
+  avg /= BINS;
+  prevAvg = prevAvg * 0.8 + avg * 0.2;
+  beatEnergy = avg;
+
+  currentR0 = Math.min(W, H) * 0.13;
+
+  // CONFIG.order[0] is the frontmost layer (drawn last); iterate from the
+  // back of the array (background) to the front (foreground / on top).
+  for (let i = CONFIG.order.length - 1; i >= 0; i--) drawLayer(CONFIG.order[i]);
+
+  if (CONFIG.starfield) drawBokeh();
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
