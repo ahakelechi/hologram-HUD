@@ -17,13 +17,22 @@
   canvas { display: block; position: absolute; top: 0; left: 0; }
   .scanlines {
     position: absolute; inset: 0; pointer-events: none; z-index: 5;
+    /* Kept low deliberately: this overlay lands on top of 8.5px type, and
+       at 0.030 it was measurably eating the thin strokes. The contrast
+       gain comes from the vignette instead, which costs no legibility. */
     background: repeating-linear-gradient(to bottom,
-      rgba(79,232,255,0.020) 0px, rgba(79,232,255,0.020) 1px, transparent 1px, transparent 3px);
+      rgba(79,232,255,0.018) 0px, rgba(79,232,255,0.018) 1px, transparent 1px, transparent 3px);
     mix-blend-mode: screen;
   }
+  /* Two-stage vignette. A single stop darkened the corners but left the
+     midfield flat; pulling the falloff in and deepening the outer stop is
+     most of the perceived contrast gain, because it gives the bright
+     subject something genuinely black to sit against. */
   .vignette {
     position: absolute; inset: 0; pointer-events: none; z-index: 6;
-    background: radial-gradient(ellipse at 50% 50%, transparent 42%, rgba(0,0,0,0.66) 100%);
+    background:
+      radial-gradient(ellipse at 50% 47%, transparent 26%, rgba(0,0,0,0.42) 62%, rgba(0,0,0,0.88) 100%),
+      linear-gradient(to bottom, rgba(0,0,0,0.30) 0%, transparent 14%, transparent 86%, rgba(0,0,0,0.42) 100%);
   }
   .grain {
     position: absolute; inset: 0; pointer-events: none; z-index: 7;
@@ -40,15 +49,41 @@
   #gear:hover { opacity: 1; }
   #settings {
     position: absolute; z-index: 21; top: 50px; left: 50%; transform: translateX(-50%);
-    width: 272px; max-height: 76vh; overflow-y: auto;
-    background: rgba(5,9,16,0.94); border: 1px solid rgba(79,232,255,0.35);
-    padding: 13px 15px; display: none; color: var(--text); font-size: 11px;
+    width: 312px; max-height: 84vh; overflow-y: auto; overscroll-behavior: contain;
+    background: rgba(5,9,16,0.96); border: 1px solid rgba(79,232,255,0.35);
+    padding: 13px 15px 15px; display: none; color: var(--text); font-size: 11px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
   }
   #settings.on { display: block; }
+  #settings::-webkit-scrollbar { width: 8px; }
+  #settings::-webkit-scrollbar-thumb { background: rgba(79,232,255,0.25); }
   #settings h4 {
     margin: 0 0 8px; color: var(--cyan); font-size: 10px; letter-spacing: 2px;
     text-transform: uppercase; opacity: 0.8; border-bottom: 1px solid rgba(79,232,255,0.2); padding-bottom: 5px;
   }
+  /* Collapsible groups: with this many controls a flat list becomes a
+     scroll-hunt, so each section can be folded away. */
+  .set-group { margin-top: 12px; }
+  .set-head {
+    display: flex; align-items: center; justify-content: space-between; cursor: pointer;
+    color: var(--cyan); font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    opacity: 0.8; border-bottom: 1px solid rgba(79,232,255,0.2); padding-bottom: 5px; user-select: none;
+  }
+  .set-head:hover { opacity: 1; }
+  .set-head .chev { font-size: 8px; opacity: 0.6; transition: transform 0.15s; padding-left: 6px; }
+  .set-group.closed .chev { transform: rotate(-90deg); }
+  .set-group.closed .set-body { display: none; }
+  .set-body { padding-top: 4px; }
+  .set-foot { display: flex; gap: 6px; margin-top: 14px; }
+  .btn {
+    flex: 1; background: rgba(79,232,255,0.08); color: var(--cyan);
+    border: 1px solid rgba(79,232,255,0.35); padding: 6px 4px; cursor: pointer;
+    font-family: inherit; font-size: 9px; letter-spacing: 1px;
+  }
+  .btn:hover { background: rgba(79,232,255,0.2); }
+  .btn.armed { background: rgba(255,90,70,0.22); border-color: rgba(255,120,100,0.7); color: #ffb0a0; }
+  .set-note { font-size: 8.5px; line-height: 1.5; opacity: 0.42; margin-top: 10px; }
+  .slider-row.changed span { color: var(--cyan); opacity: 0.95; }
   .model-row { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 4px; }
   .model-btn {
     flex: 1 1 46%; text-align: center; padding: 6px 2px; cursor: pointer;
@@ -60,8 +95,11 @@
   .theme-row { display: flex; gap: 6px; flex-wrap: wrap; }
   .theme-dot { width: 21px; height: 21px; border-radius: 50%; cursor: pointer; border: 2px solid rgba(255,255,255,0.15); }
   .theme-dot.active { border-color: #fff; }
-  .slider-row { display: flex; align-items: center; gap: 8px; margin: 9px 0; }
-  .slider-row span { font-size: 9px; letter-spacing: 1px; width: 74px; color: rgba(200,235,255,0.6); }
+  .slider-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; min-height: 18px; }
+  .slider-row span {
+    font-size: 8.5px; letter-spacing: 0.6px; width: 96px; flex: none;
+    line-height: 1.15; color: rgba(200,235,255,0.68);
+  }
   .slider-row input[type="range"] { flex: 1; accent-color: #4fe8ff; }
   .slider-row output { width: 30px; text-align: right; font-size: 9px; color: rgba(79,232,255,0.7); }
   .mod-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 10.5px; cursor: pointer; }
@@ -80,21 +118,19 @@
 
 <div id="gear" title="Settings">⚙</div>
 <div id="settings">
-  <h4>Subject</h4>
+  <h4>Model</h4>
   <div class="model-row" id="model-row"></div>
   <h4 style="margin-top:12px;">Signal Colour</h4>
   <div class="theme-row" id="theme-row"></div>
-  <h4 style="margin-top:12px;">Reactivity</h4>
-  <div class="slider-row"><span>DENSITY</span><input type="range" min="40" max="150" id="density-slider"/><output id="density-out"></output></div>
-  <div class="slider-row"><span>AUDIO GAIN</span><input type="range" min="50" max="200" id="sensitivity-slider"/><output id="sensitivity-out"></output></div>
-  <label class="mod-row"><input type="checkbox" id="mouse-toggle"/> Mouse look-at</label>
-  <h4 style="margin-top:12px;">HUD</h4>
-  <label class="mod-row"><input type="checkbox" data-fx="hud"/> HUD panels</label>
-  <label class="mod-row"><input type="checkbox" data-fx="globe"/> Orbital globe</label>
-  <label class="mod-row"><input type="checkbox" data-fx="bloom"/> Bloom glow</label>
-  <label class="mod-row"><input type="checkbox" data-fx="scan"/> Scan sweep</label>
-  <label class="mod-row"><input type="checkbox" data-fx="glitch"/> Beat glitch</label>
-  <label class="mod-row"><input type="checkbox" data-fx="particles"/> Data particles</label>
+  <div id="settings-body"></div>
+  <div class="set-foot">
+    <button class="btn" id="reset-btn">RESET ALL</button>
+    <button class="btn" id="reset-group" title="Reset only the sliders">RESET SLIDERS</button>
+  </div>
+  <div class="set-note">
+    Nothing animates on a timer. The subject holds still until the cursor,
+    the audio stream, or the machine gives it something to react to.
+  </div>
 </div>
 <div id="loading">INITIALISING VOLUMETRIC LINK…</div>
 
@@ -112,12 +148,15 @@
 // yaw0/pitch0 orient each source mesh to face the viewer. Authoring tools
 // disagree about which axis is "forward", so this is per-model and has to
 // be found by looking at the thing, not assumed.
+// No `spin`: a model that turns forever is the most obvious loop of all.
+// The drone and the ground unit now hold their presentation angle and move
+// only when the cursor or the audio stream gives them a reason to.
 const MODEL_CFG = {
-  human:   { label: 'HUMAN SUBJECT', scale: 0.82, offY: -0.28, spin: 0,      yaw0: 0,          pitch0: 0,    jaw: true,  eyes: true,  id: 'BIO-7741' },
-  android: { label: 'ANDROID UNIT',  scale: 0.92, offY: 0.00,  spin: 0,      yaw0: Math.PI/2,  pitch0: 0,    jaw: false, eyes: false, id: 'SYN-0192' },
-  titan:   { label: 'TITAN CLASS',   scale: 0.90, offY: 0.00,  spin: 0,      yaw0: 0,          pitch0: 0,    jaw: false, eyes: false, id: 'TTN-0001' },
-  drone:   { label: 'RECON DRONE',   scale: 0.88, offY: 0.00,  spin: 0.0012, yaw0: 0,          pitch0: 0.25, jaw: false, eyes: false, id: 'RCN-4420' },
-  vehicle: { label: 'GROUND UNIT',   scale: 0.88, offY: 0.00,  spin: 0.0010, yaw0: 0,          pitch0: 0.30, jaw: false, eyes: false, id: 'GRD-8830' },
+  human:   { label: 'HUMAN SUBJECT', scale: 0.82, offY: -0.28, yaw0: 0,          pitch0: 0,    jaw: true,  eyes: true,  id: 'BIO-7741' },
+  android: { label: 'ANDROID UNIT',  scale: 0.92, offY: 0.00,  yaw0: Math.PI/2,  pitch0: 0,    jaw: false, eyes: false, id: 'SYN-0192' },
+  titan:   { label: 'TITAN CLASS',   scale: 0.90, offY: 0.00,  yaw0: 0,          pitch0: 0,    jaw: false, eyes: false, id: 'TTN-0001' },
+  drone:   { label: 'RECON DRONE',   scale: 0.88, offY: 0.00,  yaw0: 0.35,       pitch0: 0.25, jaw: false, eyes: false, id: 'RCN-4420' },
+  vehicle: { label: 'GROUND UNIT',   scale: 0.88, offY: 0.00,  yaw0: 0.30,       pitch0: 0.30, jaw: false, eyes: false, id: 'GRD-8830' },
 };
 const MODEL_KEYS = Object.keys(MODEL_CFG);
 
@@ -131,14 +170,52 @@ const THEMES = {
 
 const DEFAULT_CONFIG = {
   model: 'human', theme: 'cyan', density: 100, sensitivity: 100, mouseReactive: true,
+  // ---- Subject ----
+  scale: 100,           // overall size, % of the model's authored scale
+  subjectBright: 100,   // exposure on the point cloud
+  keyAmount: 100,       // key light
+  rimAmount: 100,       // rim light — the biggest single look lever
+  jawAmount: 100,       // how far real audio opens the mouth
+  // ---- Mouse ----
+  // Full 0-360° range. 5° is a glance and stays the default because it is
+  // what reads as "alive"; past ~90° it becomes a turntable follow, which
+  // is a different (and deliberate) look rather than a broken one.
+  mouseRange: 5,
+  mouseSmooth: 40,      // follow speed
+  parallaxAmount: 100,  // how much the whole scene shifts with the cursor
+  holdTime: 3,          // seconds of attention after the cursor stops
+  invertX: false, invertY: false,
+  // ---- Presentation ----
+  hudBright: 100,       // panel/text brightness
+  bloomAmount: 100,
+  contrast: 100,        // vignette depth
+  shimmerAmount: 100,
+  idleFps: 15,          // frame rate while nothing is happening
   hud: true, globe: true, bloom: true, scan: true, glitch: true, particles: true,
   // 'system' = Wallpaper Engine's output stream, 'mic' = microphone,
   // 'off' = no analysis. There is deliberately no synthetic fallback:
   // the readouts are meant to reflect what is actually playing.
   audioSource: 'system',
-  // Idle motion off by default — the head holds still unless real audio
-  // or the cursor moves it.
-  idleMotion: false, blink: true,
+  blink: true,
+  // Idle throttle: when nothing is happening the frame rate drops and the
+  // point cloud is served from cache instead of re-rasterised. The whole
+  // design assumes long stretches of genuine stillness, so this is where
+  // most of the GPU/CPU saving comes from.
+  idlePower: true,
+  // Noise-driven holographic shimmer. Not a cycle — it is sampled from a
+  // hash, so it has no period to notice.
+  shimmer: true,
+  // Lens-style chromatic fringing on bright points, radial from the
+  // subject's centre.
+  aberration: true,
+  // Projected-light cues: the floor pool and volume cone under the bust.
+  // These sell "this is being projected" more than any other single thing.
+  projector: true,
+  // Biometric callouts with leader lines, drawn on a lock/refocus.
+  callouts: true,
+  // The globe is an instrument, not the subject, so it is the one element
+  // allowed a continuous rotation. Turn it off for a completely static idle.
+  globeSpin: true,
 };
 let CONFIG;
 try { CONFIG = JSON.parse(localStorage.getItem('holoNexusConfig')); } catch (e) { CONFIG = null; }
@@ -186,22 +263,136 @@ function smoothstep(a, b, x) {
   return tt * tt * (3 - 2 * tt);
 }
 
-// Key light, front-upper-left.
-const LIGHT = (() => {
-  const v = { x: -0.44, y: 0.40, z: 0.80 };
-  const l = Math.hypot(v.x, v.y, v.z);
-  return { x: v.x / l, y: v.y / l, z: v.z / l };
-})();
+// ============================================================
+// EVENT-DRIVEN CORE
+// The hologram has no looping animation. It is still until something
+// real happens, and every movement is a transition with a beginning and
+// an end. Three primitives carry the whole design:
+//   NOISE  — aperiodic shimmer, so "alive" never means "repeating"
+//   FX     — one-shot envelopes: fade / pulse / expand / sweep
+//   AI     — a state machine driven by actual input, not by a timer
+// ============================================================
+
+// ---------- Aperiodic noise ----------
+// A sine has a period, and a period is exactly what the eye latches onto.
+// Value noise over a hash has none: it drifts forever without repeating,
+// which is what makes idle shimmer read as a live signal rather than a GIF.
+function hash11(n) {
+  const s = Math.sin(n * 127.1) * 43758.5453123;
+  return s - Math.floor(s);
+}
+function vnoise(x) {
+  const i = Math.floor(x), f = x - i;
+  const u = f * f * (3 - 2 * f);
+  return hash11(i) * (1 - u) + hash11(i + 1) * u;
+}
+// Two octaves is enough to kill any sense of rhythm without costing anything.
+function fbm(x) { return vnoise(x) * 0.65 + vnoise(x * 2.37 + 11.3) * 0.35; }
+// Poisson event test: `rate` events per second, independent of frame rate,
+// so a rare spark stays equally rare at 15fps and at 144fps.
+function chance(ratePerSec, dtMs) { return Math.random() < ratePerSec * dtMs / 1000; }
+
+let NOW = performance.now();   // single clock for every transition
+let DT = 16;                   // real ms since the previous frame
+
+// ---------- One-shot envelopes ----------
+// Everything that moves is one of these. attack → hold → release, then it
+// is deleted and the scene is still again. Nothing here can loop: an
+// envelope past its duration is gone, not wrapped.
+const FX = new Map();
+function fire(name, dur, amp) {
+  const cur = FX.get(name);
+  const a = amp === undefined ? 1 : amp;
+  // Re-firing an active envelope restarts it rather than stacking, so a
+  // burst of events can't accumulate into permanent motion.
+  if (cur && cur.amp > a && NOW - cur.t0 < cur.dur * 0.35) { cur.t0 = NOW; return; }
+  FX.set(name, { t0: NOW, dur, amp: a });
+}
+function fx(name) {
+  const e = FX.get(name);
+  if (!e) return 0;
+  const p = (NOW - e.t0) / e.dur;
+  if (p >= 1) { FX.delete(name); return 0; }
+  // fast attack, long settle — reads as "reacted, then relaxed"
+  const v = p < 0.16 ? smoothstep(0, 0.16, p) : 1 - smoothstep(0.16, 1, p);
+  return v * e.amp;
+}
+function fxActive() {
+  for (const [k, e] of FX) if (NOW - e.t0 < e.dur) return true;
+  return false;
+}
+// Linear 0..1 progress of an envelope — for things that travel across the
+// screen once (a sweep) rather than swelling and fading (a pulse).
+function fxProgress(name) {
+  const e = FX.get(name);
+  if (!e) return -1;
+  const p = (NOW - e.t0) / e.dur;
+  return p >= 1 ? -1 : p;
+}
+
+// ---------- Event log ----------
+// Real events only. Nothing is written here on a timer, so a still screen
+// has a still log — the opposite of the usual scrolling filler.
+const LOG = [];
+function logEvent(text, weight) {
+  // Collapse repeats into a counter. A flapping signal used to fill the
+  // whole panel with the same line, which buries everything else.
+  const last = LOG[LOG.length - 1];
+  if (last && last.base === text) {
+    last.n = (last.n || 1) + 1;
+    last.text = text + '  ×' + last.n;
+    last.at = NOW;
+    return;
+  }
+  LOG.push({ text, base: text, at: NOW, w: weight || 0.6, n: 1 });
+  if (LOG.length > 14) LOG.shift();
+}
+
+// ---------- Attention state machine ----------
+// IDLE → ATTENTIVE (cursor) → LISTENING (real audio) → RESPONDING → IDLE.
+// Each edge fires transitions; no state animates on its own.
+const AI = {
+  state: 'IDLE', since: 0, listenStart: 0, lastAudioAt: -Infinity,
+  brightness: 0,     // eased "face is lit" term, event-driven
+  pathway: 0,        // eased data-pathway illumination
+};
+const STATE_LABEL = { IDLE: 'IDLE', ATTENTIVE: 'ATTENTIVE', LISTENING: 'LISTENING', RESPONDING: 'RESPONDING' };
+function setState(s) {
+  if (AI.state === s) return;
+  const prev = AI.state;
+  AI.state = s; AI.since = NOW;
+  if (s === 'ATTENTIVE') { fire('refocus', 900); fire('blink', 240); logEvent('> attention: cursor acquired', 0.7); }
+  if (s === 'LISTENING') { fire('listen-in', 700); fire('panel-audio', 1200); logEvent('> input: audio stream detected', 0.9); }
+  if (s === 'RESPONDING') { fire('respond', 2200); fire('pathway', 2600); fire('expand', 2400); logEvent('> synthesis: response generated', 1.0); }
+  if (s === 'IDLE') { fire('settle', 1400); if (prev !== 'ATTENTIVE') logEvent('> state: returning to idle', 0.45); }
+}
+
+// ---------- Three-point lighting rig ----------
+// Deliberately built like a practical lighting setup rather than a single
+// lambert term: a key that models form, a weak opposing fill that keeps the
+// shadow side readable, and a hot rim that separates the subject from the
+// background. The rim is doing most of the "hologram" work.
+function unit(x, y, z) { const l = Math.hypot(x, y, z) || 1; return { x: x / l, y: y / l, z: z / l }; }
+const LIGHT = unit(-0.44, 0.40, 0.80);   // key: front-upper-left
+const FILL = unit(0.78, -0.30, 0.34);    // fill: opposite side, from below
+const FILL_I = 0.20;                     // fill stays well under the key
+const RIM_I = 1.15;                      // rim carries the silhouette
+const RIM_TINT = 0.66;                   // how far the rim pushes to white
 // Static tone drives BOTH stipple density and brightness. Density
 // carrying tone is what produces the reference look: lit planes read as
 // dense clusters, shadowed hollows thin to bare black.
 function toneAt(nx, ny, nz, ao) {
   let diff = nx * LIGHT.x + ny * LIGHT.y + nz * LIGHT.z;
   if (diff < 0) diff = 0;
+  let fillD = nx * FILL.x + ny * FILL.y + nz * FILL.z;
+  if (fillD < 0) fillD = 0;
   const facing = nz > 0 ? nz : 0;
   const inv = 1 - facing;
-  const rim = inv * inv * inv;
-  const lit = 0.10 + diff * (0.32 + 0.68 * diff) * 0.88 + rim * 0.42;
+  let rim = inv * inv * inv;
+  if (nz < 0.05) rim *= smoothstep(-0.60, 0.05, nz);
+  // Density must track the same rig the rasteriser uses, or the stipple
+  // stops agreeing with the shading and the form falls apart.
+  const lit = 0.085 + diff * (0.32 + 0.68 * diff) * 0.90 + fillD * FILL_I * 0.8 + rim * 0.50;
   return Math.max(0, lit * (1 - Math.pow(ao, 0.75) * 1.15));
 }
 
@@ -261,11 +452,14 @@ function buildPoints(key, density, opts) {
 
 function rebuildHero() {
   const cfg = modelCfg();
+  // User size folds into the authored per-model scale, so every derived
+  // landmark (jaw pivot, eye anchors) has to use the combined value.
+  const sc = cfg.scale * (CONFIG.scale / 100);
   heroPoints = buildPoints(CONFIG.model, CONFIG.density / 100, {
-    scale: cfg.scale, offY: cfg.offY * cfg.scale, jaw: cfg.jaw,
+    scale: sc, offY: cfg.offY * sc, jaw: cfg.jaw,
   });
-  JAW_PIVOT_Y = 0.14 * cfg.scale + cfg.offY * cfg.scale;
-  JAW_PIVOT_Z = -0.20 * cfg.scale;
+  JAW_PIVOT_Y = 0.14 * sc + cfg.offY * sc;
+  JAW_PIVOT_Z = -0.20 * sc;
   EYE_ANCHORS = [];
   if (cfg.eyes) {
     const M = decodeModel(CONFIG.model);
@@ -276,12 +470,14 @@ function rebuildHero() {
         if (Math.abs(M.X[i] - tx) > 0.05 || Math.abs(M.Y[i] - HUMAN.eyeY) > 0.035) continue;
         if (M.Z[i] > best) { best = M.Z[i]; bx = M.X[i]; by = M.Y[i]; bz = M.Z[i]; }
       }
-      return { x: bx * cfg.scale, y: by * cfg.scale + cfg.offY * cfg.scale, z: bz * cfg.scale + 0.012 };
+      return { x: bx * sc, y: by * sc + cfg.offY * sc, z: bz * sc + 0.012 };
     });
   }
+  sceneDirty = true;
 }
 function rebuildGlobe() {
   globePoints = decodeModel('earth') ? buildPoints('earth', 0.85, { scale: 1, offY: 0, jaw: false, samples: 1 }) : [];
+  sceneDirty = true;
 }
 
 // ---------- Canvas ----------
@@ -290,6 +486,11 @@ const ctx = canvas.getContext('2d');
 const glowCanvas = document.createElement('canvas');
 const glowCtx = glowCanvas.getContext('2d');
 let W, H, CX, CY;
+// Declared here because resize() and the adaptive pollers run immediately
+// below and read them before the main loop section is reached.
+let sceneDirty = true;    // does the cached point layer need re-rasterising?
+let lastRenderAt = 0;     // gates the idle throttle
+let throttled = false;    // true while the scene is idle and coasting
 function resize() {
   W = canvas.width = window.innerWidth;
   H = canvas.height = window.innerHeight;
@@ -297,31 +498,63 @@ function resize() {
   CY = H * 0.47;
   glowCanvas.width = Math.max(1, W >> 2);
   glowCanvas.height = Math.max(1, H >> 2);
+  // A resize is an event: force the next frame through the throttle so the
+  // new geometry appears immediately rather than up to 66ms later.
+  sceneDirty = true; lastRenderAt = 0;
 }
 resize();
 window.addEventListener('resize', resize);
 
 // ---------- Mouse ----------
+// The cursor is an event source, not an animation driver. When it stops,
+// the head returns to rest and then holds — no drift, no wander.
 const parallax = { x: 0, y: 0 };
 let mouseNX = 0, mouseNY = 0, lastRealMove = -Infinity;
+let mousePX = -1e4, mousePY = -1e4;
 window.addEventListener('mousemove', (e) => {
+  const now = performance.now();
+  if (now - lastRealMove > 1500 && CONFIG.mouseReactive) fire('refocus', 900);
   mouseNX = (e.clientX / W - 0.5) * 2;
   mouseNY = (e.clientY / H - 0.5) * 2;
-  parallax.x = mouseNX * 12;
-  parallax.y = mouseNY * 12;
-  lastRealMove = performance.now();
+  mousePX = e.clientX; mousePY = e.clientY;
+  lastRealMove = now;
 });
 let headYaw = 0, headPitch = 0;
-const MAX_YAW = 18 * Math.PI / 180, MAX_PITCH = 11 * Math.PI / 180;
+// Look range is user-controlled across the full 0-360°. 5° is a glance and
+// is the default because it is what reads as alive; large values turn the
+// subject into a turntable that tracks the cursor, which is a valid look,
+// just a different one. Pitch is derived at 60% of yaw and clamped to 85°,
+// because a head that can pitch past vertical reads as broken rather than
+// expressive.
+function maxYaw() { return CONFIG.mouseRange * Math.PI / 180; }
+function maxPitch() { return Math.min(85, CONFIG.mouseRange * 0.6) * Math.PI / 180; }
+const REST_EPS = 0.00025;
+let poseMoving = false;
 function updateLookAt() {
   const cfg = modelCfg();
-  const hasMouse = CONFIG.mouseReactive && (performance.now() - lastRealMove < 2000);
-  const targetYaw = hasMouse ? mouseNX * MAX_YAW : Math.sin(t * 0.0009) * (6 * Math.PI / 180);
-  const targetPitch = hasMouse ? -mouseNY * MAX_PITCH : Math.cos(t * 0.0007) * (4 * Math.PI / 180);
-  headYaw += (targetYaw - headYaw) * 0.06;
-  headPitch += (targetPitch - headPitch) * 0.06;
-  if (!hasMouse) { parallax.x = Math.sin(t * 0.0016) * 9; parallax.y = Math.cos(t * 0.0021) * 9; }
-  return headYaw + (cfg.yaw0 || 0) + (cfg.spin ? t * cfg.spin * 6.283 : 0);
+  const hold = Math.max(0.2, CONFIG.holdTime) * 1000;
+  const hasMouse = CONFIG.mouseReactive && (NOW - lastRealMove < hold);
+  const ix = CONFIG.invertX ? -1 : 1, iy = CONFIG.invertY ? -1 : 1;
+  const targetYaw = hasMouse ? mouseNX * ix * maxYaw() : 0;
+  const targetPitch = hasMouse ? -mouseNY * iy * maxPitch() : 0;
+  const pk = CONFIG.parallaxAmount / 100;
+  const tpx = hasMouse ? mouseNX * ix * 7 * pk : 0, tpy = hasMouse ? mouseNY * iy * 7 * pk : 0;
+  // Frame-rate independent easing: the idle throttle changes DT by 4x, and
+  // a fixed per-frame lerp would visibly change the turn speed with it.
+  // The base is user-tunable; higher = snappier follow.
+  const base = 1 - Math.max(0.01, Math.min(0.99, CONFIG.mouseSmooth / 100)) * 0.15;
+  const k = 1 - Math.pow(base, DT / 16.7);
+  headYaw += (targetYaw - headYaw) * k;
+  headPitch += (targetPitch - headPitch) * k;
+  parallax.x += (tpx - parallax.x) * k;
+  parallax.y += (tpy - parallax.y) * k;
+  // Snap to rest once the motion is below perceptibility. Without this the
+  // asymptote never lands and the scene is never actually static — which
+  // would defeat the whole cache.
+  poseMoving = Math.abs(targetYaw - headYaw) > REST_EPS || Math.abs(targetPitch - headPitch) > REST_EPS
+    || Math.abs(tpx - parallax.x) > 0.02 || Math.abs(tpy - parallax.y) > 0.02;
+  if (!poseMoving) { headYaw = targetYaw; headPitch = targetPitch; parallax.x = tpx; parallax.y = tpy; }
+  return headYaw + (cfg.yaw0 || 0);
 }
 function heroPitch() { return headPitch + (modelCfg().pitch0 || 0); }
 
@@ -341,9 +574,10 @@ let bpm = 0;
 const beatTimes = [];
 let lastOnset = 0, onsetPrev = 0;
 
+let audioLinked = false;   // the host handed us a stream at least once
 if (window.wallpaperRegisterAudioListener) {
   window.wallpaperRegisterAudioListener((a) => {
-    audioActive = true;
+    audioLinked = true;
     for (let i = 0; i < BINS; i++) {
       targetL[i] = a[i];
       targetR[i] = a[i + BINS];
@@ -351,18 +585,80 @@ if (window.wallpaperRegisterAudioListener) {
     }
   });
 }
-let simT = 0;
-function simulateSpectrum() {
-  simT += 0.02;
-  for (let i = 0; i < BINS; i++) {
-    const base = Math.sin(simT * 1.7 + i * 0.35) * 0.5 + 0.5;
-    const kick = Math.max(0, Math.sin(simT * 2.3)) * (i < 8 ? 1 : 0.2);
-    const v = Math.max(0, base * 0.45 + kick * 0.5 - (i / BINS) * 0.15);
-    targetSpectrum[i] = v;
-    targetL[i] = v * (0.85 + 0.15 * Math.sin(simT * 0.7));
-    targetR[i] = v * (0.85 + 0.15 * Math.cos(simT * 0.7));
-  }
+// There is no simulated spectrum. The previous build synthesised one from
+// sines whenever no audio was present, which meant the entire HUD pumped on
+// a fixed 2.7-second cycle forever — the loop you could feel. With no audio
+// the analysers read zero, the meters sit flat, and the panel says so.
+
+// ---------- Media session (title / artist / transport) ----------
+// The spectrum listener above carries no metadata — it is 128 amplitude
+// floats and nothing else, so it can never tell you *what* is playing.
+// Titles come from a separate Wallpaper Engine bridge onto Windows' System
+// Media Transport Controls: the same source as the volume-key media
+// flyout. Anything that registers a media session reports there, which
+// includes Chrome/Edge (so a YouTube tab's video title), Spotify, VLC,
+// Groove and most players.
+//
+// Every listener is feature-detected and wrapped, because these hooks only
+// exist inside Wallpaper Engine on Windows. In a plain browser none of them
+// are ever called and the panel degrades to "NO MEDIA SESSION" rather than
+// throwing.
+const MEDIA = {
+  available: false, enabled: false,
+  title: '', artist: '', album: '', contentType: '',
+  state: 'stopped', position: 0, duration: 0, lastAt: 0,
+};
+function mediaHook(name, fn) {
+  // WE delivers these by calling a property we define on window, so
+  // assigning the property is what subscribes us.
+  window[name] = function () {
+    MEDIA.available = true;
+    // Never let a host callback break the render loop.
+    try { fn.apply(null, arguments); } catch (e) { /* ignore malformed payload */ }
+  };
 }
+function mediaTrackChanged(title, artist) {
+  const t = (title || '').trim();
+  if (!t || t === MEDIA.title) return;
+  MEDIA.title = t;
+  MEDIA.artist = (artist || '').trim();
+  MEDIA.lastAt = NOW;
+  // A new track is a real external event, so it gets the same treatment as
+  // every other: panel pulse, log line, and a beat of attention.
+  fire('panel-media', 1800);
+  fire('notify', 900);
+  fire('refocus', 900);
+  logEvent('> media: ' + ellipsize(t, 34), 0.9);
+  spawnPackets('link', 4);
+}
+mediaHook('wallpaperMediaStatusListener', (e) => {
+  const on = !!(e && (e.enabled !== undefined ? e.enabled : e));
+  if (on !== MEDIA.enabled) logEvent(on ? '> media: session attached' : '> media: session lost', 0.6);
+  MEDIA.enabled = on;
+  if (!on) { MEDIA.title = ''; MEDIA.artist = ''; MEDIA.state = 'stopped'; }
+});
+mediaHook('wallpaperMediaPropertiesListener', (e) => {
+  if (!e) return;
+  MEDIA.album = e.albumTitle || e.album || '';
+  MEDIA.contentType = e.contentType || '';
+  mediaTrackChanged(e.title, e.artist || e.subTitle || e.albumArtist);
+});
+mediaHook('wallpaperMediaPlaybackListener', (e) => {
+  // WE has expressed this as both a string and an enum; accept either.
+  let s = e && (e.state !== undefined ? e.state : e);
+  if (typeof s === 'number') s = ['stopped', 'playing', 'paused'][s] || 'stopped';
+  s = String(s).toLowerCase();
+  if (s.indexOf('play') >= 0) s = 'playing';
+  else if (s.indexOf('paus') >= 0) s = 'paused';
+  else s = 'stopped';
+  if (s !== MEDIA.state) { MEDIA.state = s; fire('panel-media', 1200); }
+});
+mediaHook('wallpaperMediaTimelineListener', (e) => {
+  if (!e) return;
+  MEDIA.position = +e.position || 0;
+  MEDIA.duration = +e.duration || 0;
+});
+function mediaHasTrack() { return !!MEDIA.title; }
 // Real analysis over the smoothed spectrum: band energies, RMS, peak,
 // stereo balance, spectral centroid, and a BPM estimate from the median
 // interval between detected onsets.
@@ -390,7 +686,7 @@ function analyseAudio() {
   audioBalance = tot > 0.0001 ? (sumR - sumL) / tot : 0;   // -1 left .. +1 right
 
   // onset detection on the bass band, then BPM from beat spacing
-  const now = performance.now();
+  const now = NOW;
   const rising = bassEnergy - onsetPrev;
   onsetPrev = onsetPrev * 0.72 + bassEnergy * 0.28;
   if (rising > 0.055 && now - lastOnset > 260) {
@@ -404,6 +700,13 @@ function analyseAudio() {
     lastOnset = now;
   }
   if (now - lastOnset > 4000) bpm = 0;
+
+  // Signal gate. audioActive means "there is sound right now", not "a
+  // listener was once registered" — a silent stream must leave the scene
+  // as still as no stream at all.
+  const hot = audioRMS > 0.012 || audioPeak > 0.05;
+  if (hot) AI.lastAudioAt = now;
+  audioActive = now - AI.lastAudioAt < 700;
 }
 
 // ---------- Real system metrics ----------
@@ -424,6 +727,7 @@ const SYS = {
   online: navigator.onLine,
   netType: '', netDown: 0, netRtt: 0,
   fps: 0, frameMs: 0, frameMax: 0, refresh: 0,
+  hitchMs: 0, hitchAt: 0,
   loopLag: 0, loadIdx: 0,
   bootAt: Date.now(),
 };
@@ -454,6 +758,20 @@ if (navigator.getBattery) {
 }
 window.addEventListener('online', () => { SYS.online = true; });
 window.addEventListener('offline', () => { SYS.online = false; });
+// Coming back into view is an event like any other: the hologram re-acquires
+// rather than resuming mid-animation, because there is no animation to resume.
+let hiddenSince = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { hiddenSince = performance.now(); return; }
+  NOW = performance.now();
+  lastFrameAt = NOW; lastRenderAt = 0; sceneDirty = true;
+  // Only a real absence counts. Compositors and preview panes flip this
+  // flag constantly, and reacting to every flip would be a loop driven by
+  // something the viewer never even sees.
+  if (NOW - hiddenSince < 2000) return;
+  fire('refocus', 1100); fire('sweep', 1500);
+  logEvent('> display: surface visible', 0.5);
+});
 
 function pollNetwork() {
   const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
@@ -509,8 +827,18 @@ function pollLoad() {
   return acc;
 }
 pollNetwork(); pollMemory(); pollStorage();
-setInterval(() => { pollNetwork(); pollMemory(); pollLoad(); }, 2000);
-setInterval(pollStorage, 15000);
+// Adaptive polling. The load probe is real work — running it every two
+// seconds on an idle wallpaper would spend CPU to report that the CPU is
+// free, and can provoke the very contention it measures. It backs off to
+// once every ten seconds once the scene has gone quiet.
+(function pollCycle() {
+  pollNetwork(); pollMemory(); pollLoad();
+  setTimeout(pollCycle, throttled ? 10000 : 2000);
+})();
+(function storageCycle() {
+  pollStorage();
+  setTimeout(storageCycle, throttled ? 45000 : 15000);
+})();
 
 // Frame timing: real FPS and frame cost, plus a measured refresh rate.
 let frameSamples = [], lastFrameAt = performance.now(), fpsAccum = 0, fpsCount = 0, fpsAt = performance.now();
@@ -519,8 +847,17 @@ function trackFrame() {
   const dt = now - lastFrameAt;
   lastFrameAt = now;
   if (dt > 0 && dt < 500) {
-    frameSamples.push(dt);
-    if (frameSamples.length > 120) frameSamples.shift();
+    // Throttled frames are deliberately long. Feeding them into the peak
+    // and refresh estimates would report the power saving as a stutter —
+    // and would make every idle frame trip the frame-hitch watcher.
+    if (!throttled && !document.hidden) {
+      frameSamples.push(dt);
+      if (frameSamples.length > 120) frameSamples.shift();
+      // Upper bound too: anything past 250ms is the host suspending us
+      // (fullscreen game, locked session, background tab), not a hitch.
+      // Without it, every resume would report a fault that never happened.
+      if (dt > 45 && dt < 250 && dt > SYS.frameMs * 3) { SYS.hitchMs = dt; SYS.hitchAt = now; }
+    }
     fpsAccum += dt; fpsCount++;
   }
   if (now - fpsAt > 500 && fpsCount) {
@@ -544,11 +881,105 @@ function fmtBytes(b) {
   let i = 0; while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
   return b.toFixed(b < 10 ? 1 : 0) + u[i];
 }
+// Truncate on a word boundary where possible. Slicing mid-word produced
+// readouts like "ANGLE (Intel, Intel(R) UHD Gra", which reads as a bug.
+function ellipsize(s, max) {
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  const sp = cut.lastIndexOf(' ');
+  return (sp > max * 0.55 ? cut.slice(0, sp) : cut.trimEnd()) + '…';
+}
+// Media timelines arrive in seconds; show them as a transport clock.
+function fmtClock(sec) {
+  if (!isFinite(sec) || sec < 0) return '0:00';
+  const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+  return m + ':' + String(s).padStart(2, '0');
+}
 function fmtDur(sec) {
   if (!isFinite(sec) || sec <= 0) return '—';
   const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
   return h ? `${h}h${String(m).padStart(2, '0')}m` : `${m}m${String(s).padStart(2, '0')}s`;
 }
+
+// ---------- System event watch ----------
+// Polls nothing on its own: it compares this frame's real readings against
+// the last ones and fires a transition when something actually changed.
+// This is what replaces ambient animation — the HUD moves because the
+// machine did something, and holds still when it didn't.
+const PREV = { online: SYS.online, netType: '', netDown: 0, charging: null, batt: -1, heap: 0, storage: 0, hotLoad: false, loadFlipAt: -1e9, hitchAt: 0 };
+// Decoding 2MB of vertex payload stalls the event loop, so the first
+// seconds after boot always look like contention. Baselines are recorded
+// during that window but nothing is reported from it.
+const WATCH_FROM = performance.now() + 3000;
+function watchSystem() {
+  if (NOW < WATCH_FROM) {
+    PREV.netType = SYS.netType; PREV.netDown = SYS.netDown;
+    PREV.heap = SYS.heapUsed; PREV.storage = SYS.storageUsed;
+    PREV.hitchAt = SYS.hitchAt; PREV.online = SYS.online;
+    if (SYS.battery) { PREV.charging = SYS.battery.charging; PREV.batt = Math.round(SYS.battery.level * 20); }
+    return;
+  }
+  if (SYS.online !== PREV.online) {
+    PREV.online = SYS.online;
+    fire('panel-link', 1600); fire('notify', 900);
+    logEvent(SYS.online ? '> link: network restored' : '> link: network lost', 1);
+    spawnPackets('link', 6);
+  }
+  if (SYS.netType !== PREV.netType || Math.abs(SYS.netDown - PREV.netDown) > 0.4) {
+    if (PREV.netType) { fire('panel-link', 1100); logEvent('> link: ' + (SYS.netType || 'n/a').toUpperCase() + ' ' + SYS.netDown.toFixed(1) + 'Mb/s', 0.6); spawnPackets('link', 3); }
+    PREV.netType = SYS.netType; PREV.netDown = SYS.netDown;
+  }
+  const b = SYS.battery;
+  if (b) {
+    if (PREV.charging !== null && b.charging !== PREV.charging) {
+      fire('panel-power', 1500); fire('notify', 900);
+      logEvent(b.charging ? '> power: charging' : '> power: on battery', 0.9);
+    }
+    const lvl = Math.round(b.level * 20);   // 5% steps, so this is not chatty
+    if (PREV.batt >= 0 && lvl !== PREV.batt) { fire('panel-power', 900); }
+    PREV.charging = b.charging; PREV.batt = lvl;
+  }
+  // Heap growth is the closest thing a sandboxed page has to "the machine
+  // is doing work with memory". Only a real jump counts.
+  if (PREV.heap && SYS.heapUsed - PREV.heap > 8 * 1024 * 1024) {
+    fire('panel-mem', 1300); logEvent('> memory: +' + fmtBytes(SYS.heapUsed - PREV.heap) + ' allocated', 0.6);
+    spawnPackets('mem', 4);
+  }
+  if (SYS.heapUsed) PREV.heap = SYS.heapUsed;
+  // Storage growing = something was written to disk. Packets fly to the
+  // storage readout, which is the "file download" behaviour.
+  if (PREV.storage && SYS.storageUsed - PREV.storage > 64 * 1024) {
+    fire('panel-mem', 1600); logEvent('> storage: ' + fmtBytes(SYS.storageUsed - PREV.storage) + ' written', 0.7);
+    spawnPackets('mem', 8);
+  }
+  if (SYS.storageUsed) PREV.storage = SYS.storageUsed;
+  // Contention. Schmitt trigger with a dwell time: a noisy load index sat
+  // right on a single threshold would flap between "contention" and
+  // "normal" every couple of seconds, which is a loop by another name.
+  const hot = PREV.hotLoad ? (SYS.loadIdx > 0.35 || SYS.loopLag > 14) : (SYS.loadIdx > 0.65 || SYS.loopLag > 26);
+  if (hot !== PREV.hotLoad && NOW - PREV.loadFlipAt > 6000) {
+    PREV.loadFlipAt = NOW;
+    PREV.hotLoad = hot;
+    if (hot) { fire('panel-cpu', 2000); fire('notify', 800); logEvent('> load: contention detected', 0.9); }
+    else logEvent('> load: normal', 0.45);
+  }
+  // Frame hitches are edge-triggered off the last spike trackFrame saw, so
+  // one bad frame logs once instead of for as long as it stays in the
+  // rolling maximum.
+  if (SYS.hitchAt > PREV.hitchAt) {
+    const first = PREV.hitchAt > 0 && SYS.hitchAt - PREV.hitchAt > 10000;
+    PREV.hitchAt = SYS.hitchAt;
+    if (first) {
+      fire('panel-render', 1000);
+      logEvent('> render: frame hitch ' + SYS.hitchMs.toFixed(0) + 'ms', 0.55);
+    }
+  }
+}
+window.addEventListener('mousedown', () => {
+  fire('notify', 700); fire('sweep', 1200); fire('blink', 200);
+  logEvent('> input: acknowledged', 0.8);
+  spawnPackets('hero', 5);
+});
 
 // ---------- Input telemetry (real) ----------
 const INPUT = { x: 0, y: 0, vel: 0, idle: 0, clicks: 0, lastAt: performance.now() };
@@ -561,38 +992,132 @@ window.addEventListener('mousemove', (e) => {
 });
 window.addEventListener('mousedown', () => { INPUT.clicks++; });
 
-// ---------- Idle life ----------
-let blinkUntil = -1, nextBlink = 240 + Math.random() * 360;
-const BLINK_FRAMES = 9;
+// ---------- Reactions (formerly "idle life") ----------
+// A blink is an event, not a metronome. State changes cause one; beyond
+// that they arrive as a Poisson process, which has no interval to notice.
+const BLINK_MS = 150;
+function updateBlink() {
+  if (!CONFIG.blink) return;
+  const rate = AI.state === 'IDLE' ? 0.04 : 0.12;   // per second
+  if (!FX.has('blink') && chance(rate, DT)) fire('blink', BLINK_MS);
+}
 function blinkOpenness() {
-  if (t > nextBlink && t > blinkUntil) { blinkUntil = t + BLINK_FRAMES; nextBlink = t + 260 + Math.random() * 420; }
-  if (t > blinkUntil) return 1;
+  const e = FX.get('blink');
+  if (!e) return 1;
+  const p = (NOW - e.t0) / e.dur;
+  if (p >= 1 || p < 0) return 1;
   // Clamped: this scales the eye-glow geometry, so an out-of-range value
   // paints screen-wide white bars rather than degrading quietly.
-  const f = Math.min(1, Math.max(0, 1 - (blinkUntil - t) / BLINK_FRAMES));
-  return Math.abs(f * 2 - 1);
+  return Math.min(1, Math.max(0, Math.abs(p * 2 - 1)));
 }
+
+// Beat ripple: fires on a real onset in the audio, travels outward once,
+// dies. Advanced in real time so the idle throttle cannot slow it down.
 let ripple = -1, prevBeat = 0;
 function updateRipple() {
   if (beatEnergy - prevBeat > 0.11 && ripple < 0) ripple = 0;
   prevBeat = prevBeat * 0.7 + beatEnergy * 0.3;
-  if (ripple >= 0) { ripple += 0.035; if (ripple > 1.9) ripple = -1; }
+  if (ripple >= 0) { ripple += 2.1 * DT / 1000; if (ripple > 1.9) ripple = -1; }
 }
+
+// Scan sweep: one pass, on demand. It used to run on `t % 620` — a sweep
+// every ten seconds whether or not anything had happened, which is the
+// single most recognisable "screensaver" tell in the old build.
 function scanPosition() {
-  const cycle = (t % 620) / 620;
-  if (cycle > 0.62) return 99;
-  return 1.05 - (cycle / 0.62) * 2.5;
+  const p = fxProgress('sweep');
+  if (p < 0) return 99;
+  return 1.05 - smoothstep(0, 1, p) * 2.5;
+}
+
+// ---------- State resolution ----------
+// Runs once per frame. Reads only real signals: cursor recency and the
+// audio gate. Nothing here consults a timer for the sake of movement.
+function updateState() {
+  const mouseFresh = CONFIG.mouseReactive && (NOW - lastRealMove < Math.max(0.2, CONFIG.holdTime) * 1000);
+  if (audioActive) {
+    if (AI.state !== 'LISTENING') { AI.listenStart = NOW; setState('LISTENING'); fire('sweep', 1500); }
+  } else if (AI.state === 'LISTENING') {
+    // Sustained input then silence reads as "it finished saying something",
+    // so the hologram answers before standing down.
+    if (NOW - AI.listenStart > 1200) { setState('RESPONDING'); fire('sweep', 1800); }
+    else setState(mouseFresh ? 'ATTENTIVE' : 'IDLE');
+  } else if (AI.state === 'RESPONDING') {
+    if (NOW - AI.since > 2400) setState(mouseFresh ? 'ATTENTIVE' : 'IDLE');
+  } else {
+    setState(mouseFresh ? 'ATTENTIVE' : 'IDLE');
+  }
+  // Eased terms, so a state change is a transition rather than a cut.
+  const k = 1 - Math.pow(0.90, DT / 16.7);
+  const brightTarget = (AI.state === 'RESPONDING' ? 1 : AI.state === 'LISTENING' ? 0.55 : AI.state === 'ATTENTIVE' ? 0.18 : 0)
+    + fx('notify') * 0.35;
+  const pathTarget = AI.state === 'RESPONDING' ? 1 : fx('pathway');
+  AI.brightness += (brightTarget - AI.brightness) * k;
+  AI.pathway += (pathTarget - AI.pathway) * k;
+  if (AI.brightness < 0.002) AI.brightness = 0;
+  if (AI.pathway < 0.002) AI.pathway = 0;
+}
+
+// ---------- Aperiodic holographic shimmer ----------
+// Sampled from noise, never from a cycle. Amplitude is deliberately under
+// 2% — enough to say "projected", not enough to read as animation.
+function shimmerGain() {
+  if (!CONFIG.shimmer) return 1;
+  const k = CONFIG.shimmerAmount / 100;
+  return 1 + ((fbm(NOW * 0.00019) - 0.5) * 0.030 + (fbm(NOW * 0.0013 + 40) - 0.5) * 0.012) * k;
+}
+// A single scanline band that appears at a random height, at random
+// intervals, and is gone. No sweep, no period.
+let noiseBand = null;
+function updateNoiseBand() {
+  if (noiseBand && NOW - noiseBand.t0 > noiseBand.dur) noiseBand = null;
+  if (!noiseBand && CONFIG.shimmer && chance(0.35, DT)) {
+    noiseBand = { t0: NOW, dur: 120 + Math.random() * 260, y: Math.random(), h: 2 + Math.random() * 26, a: 0.05 + Math.random() * 0.10 };
+  }
+}
+function drawNoiseBand() {
+  if (!noiseBand) return;
+  const p = (NOW - noiseBand.t0) / noiseBand.dur;
+  const a = noiseBand.a * (1 - Math.abs(p * 2 - 1));
+  ctx.fillStyle = acc(a);
+  ctx.fillRect(0, noiseBand.y * H, W, noiseBand.h);
 }
 
 // ---------- Pixel layer ----------
 // putImageData replaces rather than composites, so everything in the
 // point layer must rasterise into this one buffer before it is pushed.
+// The buffer now lands on an offscreen scene canvas rather than straight
+// on screen, which is what makes stillness cheap: when the pose and every
+// modifier are unchanged, the frame is a single blit of the last raster
+// instead of ~90k point projections.
+const sceneCanvas = document.createElement('canvas');
+const sceneCtx = sceneCanvas.getContext('2d');
 let pxData = null, pxU32 = null, pxW = 0, pxH = 0;
 function ensurePixelBuffer() {
   if (pxData && pxW === W && pxH === H) return;
-  pxData = ctx.createImageData(W, H);
+  sceneCanvas.width = W; sceneCanvas.height = H;
+  pxData = sceneCtx.createImageData(W, H);
   pxU32 = new Uint32Array(pxData.data.buffer);
   pxW = W; pxH = H;
+  sceneDirty = true;
+}
+// The rasteriser writes through this indirection rather than straight at
+// the full-screen buffer. That is what lets the globe keep turning on its
+// own small target while the subject stays served from cache — otherwise a
+// spinning globe would mark the whole scene dirty every frame and the idle
+// throttle would never engage.
+let tU32 = null, tW = 0, tH = 0;
+function setTarget(u32, w, h) { tU32 = u32; tW = w; tH = h; }
+
+// ---------- Globe target ----------
+const globeCanvas = document.createElement('canvas');
+const globeCtx = globeCanvas.getContext('2d');
+let gxData = null, gxU32 = null, gxW = 0, gxH = 0;
+function ensureGlobeBuffer(w, h) {
+  if (gxData && gxW === w && gxH === h) return;
+  globeCanvas.width = w; globeCanvas.height = h;
+  gxData = globeCtx.createImageData(w, h);
+  gxU32 = new Uint32Array(gxData.data.buffer);
+  gxW = w; gxH = h;
 }
 let accentRGB = null, accentKey = null;
 function accentFor(a) {
@@ -603,14 +1128,33 @@ function accentFor(a) {
   return accentRGB;
 }
 function blendPx(idx, r, g, b) {
-  const p = pxU32[idx];
+  const p = tU32[idx];
   let pr = (p & 255) + r; if (pr > 255) pr = 255;
   let pg = ((p >> 8) & 255) + g; if (pg > 255) pg = 255;
   let pb = ((p >> 16) & 255) + b; if (pb > 255) pb = 255;
-  pxU32[idx] = 0xFF000000 | (pb << 16) | (pg << 8) | pr;
+  tU32[idx] = 0xFF000000 | (pb << 16) | (pg << 8) | pr;
 }
-function beginPixelFrame() { ensurePixelBuffer(); pxU32.fill(0xFF000000); }
-function endPixelFrame() { ctx.putImageData(pxData, 0, 0); }
+// Transparent clear, not opaque black: the base colour is painted on the
+// main canvas, so the cached scene can be blitted at a shimmer-modulated
+// alpha without the black plate fading with it.
+function beginPixelFrame() { ensurePixelBuffer(); pxU32.fill(0x00000000); setTarget(pxU32, W, H); }
+function endPixelFrame() { sceneCtx.putImageData(pxData, 0, 0); }
+// The globe re-rasters every rendered frame while the subject does not, so
+// it gets its own small buffer and its own composite.
+function renderGlobe(g) {
+  ensureGlobeBuffer(Math.max(1, g.w | 0), Math.max(1, g.h | 0));
+  gxU32.fill(0x00000000);
+  setTarget(gxU32, gxW, gxH);
+  rasterCloud(globePoints, gxW * 0.30, gxW / 2, gxH / 2, globeYaw, GLOBE_TILT, { gain: 0.74, key: 0.92, ca: 0.5 });
+  globeCtx.putImageData(gxData, 0, 0);
+  setTarget(pxU32, W, H);
+}
+function blitScene(alpha) {
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+  ctx.drawImage(sceneCanvas, 0, 0);
+  ctx.restore();
+}
 
 const FOCAL = 4.2;
 
@@ -625,6 +1169,24 @@ function rasterCloud(pts, r0, ox, oy, yaw, pitch, opt) {
   const jitAmp = opt.jitAmp || 0;
   const breathe = opt.breathe || 0;
   const useRipple = opt.ripple;
+  // Key intensity is the one lighting term events are allowed to move:
+  // the face brightens when the hologram responds, then returns.
+  const key = opt.key !== undefined ? opt.key : 1;
+  const rimK = opt.rim !== undefined ? opt.rim : 1;
+  // Rim and sweep highlight colours, blended toward white once per call
+  // rather than once per point.
+  const rimR = col.r + (255 - col.r) * RIM_TINT;
+  const rimG = col.g + (255 - col.g) * RIM_TINT;
+  const rimB = col.b + (255 - col.b) * RIM_TINT;
+  const hotR = col.r + (255 - col.r) * 0.78;
+  const hotG = col.g + (255 - col.g) * 0.78;
+  const hotB = col.b + (255 - col.b) * 0.78;
+  // Aberration strength scales with distance from the cloud's own centre,
+  // the way a real lens defect does. Zero when the effect is switched off.
+  // The subject only spans about a third of r0, so the coefficient is set
+  // against that rather than against r0 itself — scaled the other way, the
+  // offset truncated to zero everywhere and the effect never drew at all.
+  const caK = CONFIG.aberration ? (opt.ca !== undefined ? opt.ca : 1) * 3.4 / Math.max(1, r0) : 0;
   for (let i = 0; i < pts.length; i++) {
     const pt = pts[i];
     const lx = pt.x + pt.jit * jitAmp;
@@ -652,91 +1214,201 @@ function rasterCloud(pts, r0, ox, oy, yaw, pitch, opt) {
     const nz1 = -pt.nx * sy + pt.nz * cy;
     const ny2 = pt.ny * cp - nz1 * sp;
     const nz2 = pt.ny * sp + nz1 * cp;
+    // --- three-point lighting ---
+    // Key alone crushed everything facing away into flat black, which is
+    // why the old cloud read as a grey haze rather than a lit form. A weak
+    // opposing fill recovers shape in the shadow side without lifting it
+    // to the key's level, and the rim does the actual separation work.
     let diffuse = nx1 * LIGHT.x + ny2 * LIGHT.y + nz2 * LIGHT.z;
     if (diffuse < 0) diffuse = 0;
+    let fillD = nx1 * FILL.x + ny2 * FILL.y + nz2 * FILL.z;
+    if (fillD < 0) fillD = 0;
     const facing = nz2 > 0 ? nz2 : 0;
     const inv = 1 - facing;
-    const rim = inv * inv * inv;
-    const shade = 0.12 + diffuse * 0.85 + rim * 0.72;
-    let alpha = (shade * pt.bright * (0.55 + facing * 0.45) + boost * pt.bright) * gain;
-    if (alpha < 0.03) continue;
-    if (alpha > 1) alpha = 1;
+    // Rim is masked against strongly back-facing normals. Without the mask
+    // the far side of the head rims just as hard as the silhouette and
+    // fills the interior with glow — the main thing killing contrast.
+    let rim = inv * inv * inv;
+    if (nz2 < 0.05) rim *= smoothstep(-0.60, 0.05, nz2);
+    // S-curve on the body term: separates midtones so lit planes read as
+    // planes instead of a continuous gradient.
+    let body = 0.055 + diffuse * (0.34 + 0.66 * diffuse) * key + fillD * FILL_I;
+    if (body > 1) body = 1;
+    body = body * body * (3 - 2 * body);
+    const ri = rim * RIM_I * rimK;
+    // Depth attenuation. z2 grows toward the viewer, so this dims the far
+    // side and gives the cloud a readable front-to-back order.
+    const fog = 0.62 + 0.52 * z2;
+    const shadeMul = pt.bright * (0.55 + facing * 0.45) * gain * (fog < 0.25 ? 0.25 : fog);
+    const bw = boost * pt.bright * gain;
+    const lum = (body + ri) * shadeMul + bw;
+    if (lum < 0.03) continue;
     const persp = FOCAL / (FOCAL - z2);
     const dx = (ox + x1 * r0 * persp) | 0;
     const dy = (oy - y2 * r0 * persp) | 0;
-    if (dx < 0 || dy < 0 || dx >= W || dy >= H) continue;
-    const cr = (col.r * alpha) | 0, cg = (col.g * alpha) | 0, cb = (col.b * alpha) | 0;
-    blendPx(dy * W + dx, cr, cg, cb);
+    if (dx < 0 || dy < 0 || dx >= tW || dy >= tH) continue;
+    // Rim and sweep highlights push toward white; the body keeps the
+    // accent hue. That hue split is what makes an edge look lit rather
+    // than just brighter.
+    let cr = (col.r * body + rimR * ri) * shadeMul + hotR * bw;
+    let cg = (col.g * body + rimG * ri) * shadeMul + hotG * bw;
+    let cb = (col.b * body + rimB * ri) * shadeMul + hotB * bw;
+    if (cr > 255) cr = 255; if (cg > 255) cg = 255; if (cb > 255) cb = 255;
+    cr |= 0; cg |= 0; cb |= 0;
+    blendPx(dy * tW + dx, cr, cg, cb);
+    // Radial chromatic aberration, applied only to bright points so the
+    // cost stays in the few hundred pixels where the fringe is visible.
+    if (caK && lum > 0.34) {
+      // round, not truncate: at these magnitudes truncation discards the
+      // entire sub-pixel range where the fringe actually lives
+      const off = Math.round((dx - ox) * caK);
+      if (off) {
+        const a1 = dx + off, a2 = dx - off;
+        if (a1 >= 0 && a1 < tW) blendPx(dy * tW + a1, cr >> 1, 0, 0);
+        if (a2 >= 0 && a2 < tW) blendPx(dy * tW + a2, 0, 0, cb >> 1);
+      }
+    }
     const s = pt.size * persp * (1 + boost * 0.6);
     if (s > 0.85) {
       const hr = cr >> 1, hg = cg >> 1, hb = cb >> 1;
-      if (dx + 1 < W) blendPx(dy * W + dx + 1, hr, hg, hb);
-      if (dy + 1 < H) blendPx((dy + 1) * W + dx, hr, hg, hb);
-      if (dx + 1 < W && dy + 1 < H) blendPx((dy + 1) * W + dx + 1, hr, hg, hb);
+      if (dx + 1 < tW) blendPx(dy * tW + dx + 1, hr, hg, hb);
+      if (dy + 1 < tH) blendPx((dy + 1) * tW + dx, hr, hg, hb);
+      if (dx + 1 < tW && dy + 1 < tH) blendPx((dy + 1) * tW + dx + 1, hr, hg, hb);
     }
   }
 }
 
-function drawHero(r0) {
+// Hero modifiers. `breathe` is gone: a head that rises and falls forever is
+// a loop by definition, and the brief said no breathing. The mouth opens
+// only for real audio, so a silent machine leaves the face closed and still.
+function heroParams() {
   const cfg = modelCfg();
   const sensitivity = CONFIG.sensitivity / 100;
-  const idleBreath = 0.045 + 0.02 * Math.sin(t * 0.02);
-  const mouthOpen = Math.max(0, Math.min(1, idleBreath + bassEnergy * 1.5 * sensitivity));
-  rasterCloud(heroPoints, r0, CX + parallax.x * 0.1, CY + parallax.y * 0.1, heroYaw, heroPitch(), {
-    gain: 0.85 + beatEnergy * 0.3,
+  const mouthOpen = audioActive ? Math.max(0, Math.min(1, bassEnergy * 1.7 * sensitivity * (CONFIG.jawAmount / 100))) : 0;
+  return {
+    gain: (0.88 + beatEnergy * 0.3 + AI.brightness * 0.20) * (CONFIG.subjectBright / 100),
+    // The key light itself lifts when the hologram responds, so "the face
+    // brightens" is a lighting change rather than a flat opacity bump.
+    key: (1 + AI.brightness * 0.42 + fx('refocus') * 0.12) * (CONFIG.keyAmount / 100),
+    rim: CONFIG.rimAmount / 100,
     jawAngle: cfg.jaw ? mouthOpen * 0.20 : 0,
     scanY: CONFIG.scan ? scanPosition() : 99,
-    jitAmp: trebleEnergy * 0.012,
-    breathe: Math.sin(t * 0.013) * 0.006,
+    jitAmp: audioActive ? trebleEnergy * 0.012 : 0,
+    breathe: 0,
     ripple: true,
-  });
+  };
+}
+// Signature of everything the rasteriser consumes. If it is unchanged the
+// previous raster is still correct and the point loop can be skipped
+// entirely — this is the difference between an idle wallpaper costing
+// ~0.3ms and ~4ms a frame.
+function heroSig(p, r0) {
+  return [r0 | 0, headYaw.toFixed(5), headPitch.toFixed(5), parallax.x.toFixed(2), parallax.y.toFixed(2),
+    p.gain.toFixed(4), p.key.toFixed(4), (p.rim || 1).toFixed(4), p.jawAngle.toFixed(4), p.scanY.toFixed(3), p.jitAmp.toFixed(5),
+    ripple.toFixed(3), CONFIG.theme, CONFIG.model, CONFIG.aberration ? 1 : 0, heroPoints.length].join('|');
+}
+function drawHero(r0, p) {
+  rasterCloud(heroPoints, r0, CX + parallax.x * 0.1, CY + parallax.y * 0.1, heroYaw, heroPitch(), p);
 }
 
-// ---------- Stars & particles (point layer) ----------
+// ---------- Starfield (static, part of the cached scene) ----------
+// The twinkle was a per-star sine — 130 little loops running forever, and
+// it also made the scene dirty every frame, which killed any chance of
+// caching. The field is fixed now; the shimmer term on the blit gives it
+// all the life it needs.
 const stars = Array.from({ length: 130 }, () => ({
-  x: Math.random(), y: Math.random(), r: 0.4 + Math.random() * 1.1,
-  a: 0.15 + Math.random() * 0.5, tw: Math.random() * Math.PI * 2,
+  x: Math.random(), y: Math.random(), a: 0.15 + Math.random() * 0.5,
 }));
 function drawStars() {
   stars.forEach(s => {
-    const a = s.a * (0.55 + 0.45 * Math.sin(t * 0.012 + s.tw));
-    const sx = (s.x * W) | 0, sy = (s.y * H) | 0;
-    if (sx < 0 || sy < 0 || sx >= W || sy >= H) return;
-    blendPx(sy * W + sx, (210 * a) | 0, (240 * a) | 0, (255 * a) | 0);
-  });
-}
-const particles = Array.from({ length: 90 }, () => ({
-  x: Math.random(), y: Math.random(), sp: 0.0006 + Math.random() * 0.0022,
-  len: 3 + Math.random() * 16, a: 0.12 + Math.random() * 0.4,
-}));
-function drawParticles() {
-  const col = accentFor(theme().accent);
-  const rush = 1 + beatEnergy * 2.2;
-  const fade = 0.5 + beatEnergy * 0.5;
-  particles.forEach(p => {
-    p.y -= p.sp * rush;
-    if (p.y < -0.05) { p.y = 1.05; p.x = Math.random(); }
-    const px = (p.x * W) | 0;
-    if (px < 0 || px >= W) return;
-    const py = (p.y * H) | 0;
-    const len = (p.len * rush) | 0;
-    for (let k = 0; k < len; k++) {
-      const yy = py + k;
-      if (yy < 0 || yy >= H) continue;
-      const a = p.a * fade * (1 - k / len);
-      blendPx(yy * W + px, (col.r * a) | 0, (col.g * a) | 0, (col.b * a) | 0);
-    }
+    const a = s.a * 0.8;
+    const sx = (s.x * tW) | 0, sy = (s.y * tH) | 0;
+    if (sx < 0 || sy < 0 || sx >= tW || sy >= tH) return;
+    blendPx(sy * tW + sx, (210 * a) | 0, (240 * a) | 0, (255 * a) | 0);
   });
 }
 
+// ---------- Data packets (event-spawned, finite) ----------
+// The old build streamed 90 particles upward forever. These are emitted
+// only by events, travel once from a source to a destination, and are
+// removed on arrival — so an idle screen has exactly zero of them.
+const packets = [];
+const PACKET_TARGETS = {};   // filled in by the HUD each frame it draws
+function spawnPackets(route, n) {
+  if (!CONFIG.particles) return;
+  for (let i = 0; i < n && packets.length < 120; i++) {
+    packets.push({ route, t: -i * 0.06, sp: 0.6 + Math.random() * 0.5, off: (Math.random() - 0.5) * 26, a: 0.35 + Math.random() * 0.5 });
+  }
+}
+// Routes are registered by the HUD as it lays panels out, so a packet
+// aimed at a panel that isn't on screen simply has nowhere to go and is
+// dropped rather than flying to a stale coordinate.
+function packetPath(route) { return PACKET_TARGETS[route] || null; }
+function drawPackets() {
+  if (!packets.length) return;
+  const col = accentFor(theme().accent);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = packets.length - 1; i >= 0; i--) {
+    const p = packets[i];
+    p.t += p.sp * DT / 1000;
+    if (p.t > 1.05) { packets.splice(i, 1); continue; }
+    if (p.t < 0) continue;
+    const path = packetPath(p.route);
+    if (!path) { packets.splice(i, 1); continue; }
+    const e = smoothstep(0, 1, p.t);
+    // slight arc, so packets read as routed rather than fired
+    const mx = (path.x0 + path.x1) / 2 + p.off, my = (path.y0 + path.y1) / 2 - 40;
+    const u = 1 - e;
+    const x = u * u * path.x0 + 2 * u * e * mx + e * e * path.x1;
+    const y = u * u * path.y0 + 2 * u * e * my + e * e * path.y1;
+    const fade = Math.min(1, Math.min(p.t, 1 - p.t) * 6);
+    ctx.fillStyle = `rgba(${col.r},${col.g},${col.b},${p.a * fade})`;
+    ctx.fillRect(x - 1.2, y - 1.2, 2.4, 2.4);
+    ctx.fillStyle = `rgba(${col.r},${col.g},${col.b},${p.a * fade * 0.30})`;
+    ctx.fillRect(x - 3, y - 3, 6, 6);
+  }
+  ctx.restore();
+}
+
 // ---------- HUD chrome (canvas ops, drawn after the pixel layer) ----------
-function acc(a) { return `rgba(${theme().accent}, ${a})`; }
-function panel(x, y, w, h, label, sub) {
-  ctx.strokeStyle = acc(0.20);
+// Panel brightness. HUD_K is raised only for the duration of the HUD pass,
+// so the same accent helper can serve the subject's own furniture (eye
+// glow, projector, callouts) at full strength while the panels dim or lift
+// independently. Doing it with ctx.globalAlpha instead would cap at 1 and
+// make values above 100% impossible.
+let HUD_K = 1;
+function acc(a) { return `rgba(${theme().accent}, ${Math.min(1, a * HUD_K)})`; }
+// Non-accent HUD ink (values, warnings, status greens) has to scale with
+// the same control, or raising panel brightness would lift only the chrome
+// and leave the numbers behind.
+function ink(a, rgb) { return 'rgba(' + (rgb || '226,247,255') + ',' + Math.min(1, a * HUD_K) + ')'; }
+// Proximity response: panels near the cursor lift slightly. This is the
+// "nearby HUD elements respond" behaviour — it costs nothing when the
+// cursor is parked, because then it evaluates to zero everywhere.
+function cursorLift(x, y, w, h) {
+  if (!CONFIG.mouseReactive || NOW - lastRealMove > Math.max(0.2, CONFIG.holdTime) * 1000) return 0;
+  const cx = x + w / 2, cy = y + h / 2;
+  const d = Math.hypot(mousePX - cx, mousePY - cy);
+  const reach = Math.max(w, h) * 2.1 + 120;
+  return d > reach ? 0 : (1 - d / reach) * 0.85;
+}
+// `emph` is the sum of any event envelopes aimed at this panel. Zero at
+// rest, which is the whole point: a still panel is a panel with nothing
+// to report.
+function panel(x, y, w, h, label, sub, emph) {
+  const e = (emph || 0) + cursorLift(x, y, w, h) * 0.5;
+  ctx.strokeStyle = acc(0.20 + e * 0.42);
   ctx.lineWidth = 1;
   ctx.strokeRect(x, y, w, h);
-  const bl = 11;
-  ctx.strokeStyle = acc(0.55);
+  if (e > 0.02) {
+    // fill + brighter frame instead of a size change: expansion that moves
+    // neighbouring panels would make the whole column twitch
+    ctx.fillStyle = acc(0.030 * e);
+    ctx.fillRect(x, y, w, h);
+  }
+  const bl = 11 + e * 7;
+  ctx.strokeStyle = acc(0.55 + e * 0.40);
   ctx.lineWidth = 1.4;
   [[x, y, 1, 1], [x + w, y, -1, 1], [x, y + h, 1, -1], [x + w, y + h, -1, -1]].forEach(([cx0, cy0, dx, dy]) => {
     ctx.beginPath();
@@ -744,37 +1416,65 @@ function panel(x, y, w, h, label, sub) {
     ctx.stroke();
   });
   if (label) {
-    ctx.font = "9.5px 'Share Tech Mono', monospace";
-    ctx.fillStyle = acc(0.62);
+    // A solid accent tab anchors the title to its panel. Without it the
+    // labels floated between panels and it was ambiguous which one each
+    // belonged to — the main legibility problem in the old layout.
+    ctx.fillStyle = acc(0.55 + e * 0.45);
+    ctx.fillRect(x, y - 13, 2.5, 10);
+    ctx.font = "700 9.5px Orbitron, 'Share Tech Mono', monospace";
+    ctx.fillStyle = ink(0.80 + e * 0.20);
     ctx.textAlign = 'left';
-    ctx.fillText(label, x + 2, y - 6);
+    ctx.fillText(label, x + 7, y - 5);
+    // hairline rule out to the panel edge, filling the dead space
+    const lw = ctx.measureText(label).width;
+    ctx.strokeStyle = acc(0.16 + e * 0.22);
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x + 11 + lw, y - 8); ctx.lineTo(x + w, y - 8); ctx.stroke();
   }
   if (sub) {
+    // 0.34 was below the point where 8px type stays readable against the
+    // deepened vignette — checked at 1:1, not scaled down.
     ctx.font = "8px 'Share Tech Mono', monospace";
-    ctx.fillStyle = acc(0.32);
+    ctx.fillStyle = acc(0.46 + e * 0.30);
     ctx.fillText(sub, x + 2, y + h + 11);
   }
+  return e;
 }
 // Horizontal meter for a real 0..1 value.
 function meter(x, y, w, h, frac, label, valueText, warn) {
   ctx.font = "8.5px 'Share Tech Mono', monospace";
   ctx.textAlign = 'left';
-  ctx.fillStyle = acc(0.44);
+  ctx.fillStyle = acc(0.40);
   ctx.fillText(label, x, y - 3);
   if (valueText) {
     ctx.textAlign = 'right';
-    ctx.fillStyle = warn ? 'rgba(255,140,120,0.9)' : 'rgba(210,240,255,0.78)';
+    ctx.font = "9.5px 'Share Tech Mono', monospace";
+    ctx.fillStyle = warn ? ink(0.98, '255,150,130') : ink(0.92);
     ctx.fillText(valueText, x + w, y - 3);
     ctx.textAlign = 'left';
   }
-  ctx.strokeStyle = acc(0.18);
+  // unfilled track kept very dark, so the fill has something to read against
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = acc(0.22);
   ctx.lineWidth = 1;
   ctx.strokeRect(x, y, w, h);
   const f = Math.max(0, Math.min(1, frac));
-  ctx.fillStyle = warn ? 'rgba(255,120,100,0.55)' : acc(0.50);
-  ctx.fillRect(x + 1, y + 1, (w - 2) * f, h - 2);
+  const fw = (w - 2) * f;
+  if (fw > 0) {
+    // gradient along the fill: dim at the origin, hot at the head, so the
+    // eye lands on the current value rather than the whole bar
+    const g = ctx.createLinearGradient(x, 0, x + fw, 0);
+    if (warn) { g.addColorStop(0, 'rgba(255,90,70,0.40)'); g.addColorStop(1, 'rgba(255,170,140,0.95)'); }
+    else { g.addColorStop(0, acc(0.32)); g.addColorStop(1, acc(0.92)); }
+    ctx.fillStyle = g;
+    ctx.fillRect(x + 1, y + 1, fw, h - 2);
+    // bright head marker
+    ctx.fillStyle = warn ? ink(1, '255,210,190') : ink(0.95, '235,252,255');
+    ctx.fillRect(x + 1 + fw - 1.5, y + 1, 1.5, h - 2);
+  }
   // segment ticks so it reads as an instrument, not a progress bar
-  ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)';
   for (let i = 1; i < 10; i++) {
     const px = x + (w - 2) * i / 10;
     ctx.beginPath(); ctx.moveTo(px, y + 1); ctx.lineTo(px, y + h - 1); ctx.stroke();
@@ -826,78 +1526,119 @@ function balanceMeter(x, y, w, h) {
   ctx.textAlign = 'right'; ctx.fillText('R', x + w - 2, y + h - 2);
   ctx.textAlign = 'left';
 }
-function drawWaveform(x, y, w, h) {
-  ctx.strokeStyle = acc(0.55);
+// Speech waveform. The phase used to advance on the frame counter, so it
+// scrolled forever even in silence; it is now purely a plot of the current
+// spectrum, mirrored about the axis. No audio, no movement.
+function drawWaveform(x, y, w, h, alpha) {
+  const a = alpha === undefined ? 1 : alpha;
+  if (a <= 0.01) return;
+  ctx.strokeStyle = acc(0.55 * a);
   ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  for (let i = 0; i <= 60; i++) {
-    const f = i / 60;
-    const s = spectrum[(i * 2) % BINS] || 0;
-    const v = Math.sin(f * 22 + t * 0.06) * s * 1.6;
-    const px = x + f * w, py = y + h / 2 - v * h * 0.45;
-    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  for (const sign of [1, -1]) {
+    ctx.beginPath();
+    for (let i = 0; i <= 60; i++) {
+      const f = i / 60;
+      const s = spectrum[Math.floor(f * (BINS - 1))] || 0;
+      // taper at the ends so it reads as an utterance, not a band graph
+      const env = Math.sin(f * Math.PI);
+      const px = x + f * w, py = y + h / 2 - sign * s * env * h * 0.62;
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.stroke();
   }
-  ctx.stroke();
+  ctx.strokeStyle = acc(0.18 * a);
+  ctx.beginPath(); ctx.moveTo(x, y + h / 2); ctx.lineTo(x + w, y + h / 2); ctx.stroke();
 }
+// Label/value rows. The two were previously almost the same brightness,
+// which left every panel as an undifferentiated grey block. Labels now sit
+// well back in the accent colour and values come forward in near-white,
+// with a dotted leader joining them — the value is the thing you read.
 function rows(x, y, lineH, items) {
-  ctx.font = "9px 'Share Tech Mono', monospace";
   items.forEach((r, i) => {
+    const ry = y + i * lineH;
+    const avail = r[3];
     ctx.textAlign = 'left';
+    ctx.font = "8.5px 'Share Tech Mono', monospace";
+    const kw = ctx.measureText(r[0]).width;
+    // Fit the value before drawing anything. A long value (PLATFORM
+    // "Windows", a wide heap figure) previously ran straight into its own
+    // label with no gap at all — it only shows up at 1:1.
+    let val = String(r[1]);
+    ctx.font = "10px 'Share Tech Mono', monospace";
+    let vw = ctx.measureText(val).width;
+    const room = avail - kw - 8;
+    if (vw > room) {
+      ctx.font = "8.5px 'Share Tech Mono', monospace";
+      vw = ctx.measureText(val).width;
+      while (val.length > 1 && vw > room) {
+        val = val.slice(0, -1);
+        vw = ctx.measureText(val + '…').width;
+      }
+      if (val !== String(r[1])) val += '…';
+      vw = ctx.measureText(val).width;
+    }
     ctx.fillStyle = acc(0.42);
-    ctx.fillText(r[0], x, y + i * lineH);
+    ctx.font = "8.5px 'Share Tech Mono', monospace";
+    ctx.fillText(r[0], x, ry);
+    ctx.fillStyle = r[2] || ink(0.94);
+    ctx.font = (val === String(r[1]) && vw <= room) ? "10px 'Share Tech Mono', monospace" : "8.5px 'Share Tech Mono', monospace";
     ctx.textAlign = 'right';
-    ctx.fillStyle = r[2] || 'rgba(210,240,255,0.72)';
-    ctx.fillText(r[1], x + r[3], y + i * lineH);
+    ctx.fillText(val, x + avail, ry);
+    // leader dots, drawn only in the gap that is actually empty
+    const gap0 = x + kw + 5, gap1 = x + avail - vw - 5;
+    if (gap1 - gap0 > 8) {
+      ctx.fillStyle = acc(0.22);
+      for (let px = gap0; px < gap1; px += 3) ctx.fillRect(px, ry - 3, 1, 1);
+    }
+    ctx.textAlign = 'left';
   });
-  ctx.textAlign = 'left';
 }
-const LOG_LINES = [
-  '> volumetric.link established', '> vertex stream nominal', '> occlusion pass complete',
-  '> tone map: density-coded', '> subject lock engaged', '> spectral bind ok',
-  '> parallax solver active', '> jitter within tolerance', '> depth buffer purged',
-  '> rasteriser: direct pixel', '> bloom kernel 4x down', '> integrity 99.7%',
-];
-function drawLogPanel(x, y, w, h) {
-  panel(x, y, w, h, 'SYS.LOG', 'STREAM // LIVE');
+// Event log. Previously twelve canned strings scrolling on a frame counter
+// forever — the most literal loop in the file. It now shows real events in
+// the order they happened, each fading in once and then holding.
+function drawLogPanel(x, y, w, h, emph) {
+  panel(x, y, w, h, 'EVENT LOG', LOG.length ? 'REAL EVENTS' : 'NO EVENTS', emph);
   ctx.save();
   ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
   ctx.font = "8.5px 'Share Tech Mono', monospace";
-  const lh = 12, total = LOG_LINES.length * lh;
-  const off = (t * 0.35) % total;
-  for (let i = 0; i < LOG_LINES.length + 6; i++) {
-    const li = i % LOG_LINES.length;
-    const py = y + h - 6 - (i * lh - off);
-    if (py < y - lh || py > y + h) continue;
-    ctx.fillStyle = acc(0.20 + 0.28 * ((i * 7) % 5) / 5);
-    ctx.fillText(LOG_LINES[li], x + 7, py);
+  ctx.textAlign = 'left';
+  const lh = 12, maxLines = Math.floor((h - 8) / lh);
+  const start = Math.max(0, LOG.length - maxLines);
+  for (let i = start; i < LOG.length; i++) {
+    const L = LOG[i];
+    const age = NOW - L.at;
+    const fadeIn = smoothstep(0, 260, age);
+    // recent events stay bright, older ones recede but never vanish
+    const settle = 0.30 + 0.55 * L.w * (1 - smoothstep(1500, 9000, age));
+    ctx.fillStyle = acc(settle * fadeIn);
+    const slide = (1 - fadeIn) * 6;
+    ctx.fillText(L.text, x + 7 + slide, y + 14 + (i - start) * lh);
+  }
+  if (!LOG.length) {
+    ctx.fillStyle = acc(0.22);
+    ctx.fillText('> standing by', x + 7, y + 14);
   }
   ctx.restore();
 }
-function drawRadar(cx, cy, r) {
-  ctx.strokeStyle = acc(0.16);
-  ctx.lineWidth = 1;
-  [1, 0.68, 0.36].forEach(f => { ctx.beginPath(); ctx.arc(cx, cy, r * f, 0, Math.PI * 2); ctx.stroke(); });
-  ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy);
-  ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r); ctx.stroke();
-  const a = t * 0.011;
-  const g = ctx.createLinearGradient(cx, cy, cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-  g.addColorStop(0, acc(0.30)); g.addColorStop(1, acc(0));
-  ctx.strokeStyle = g; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); ctx.stroke();
-}
+// Reticle. The arcs used to creep round on `t`; they now hold their
+// orientation and only swing during a refocus, then stop where they land.
+let reticleAngle = 0.30;
 function drawReticle(r0) {
   const cx = CX + parallax.x * 0.1, cy = CY + parallax.y * 0.1;
-  const r = r0 * 0.92 * (1 + beatEnergy * 0.03);
-  ctx.strokeStyle = acc(0.26);
+  const focus = fx('refocus') + fx('respond') * 0.8;
+  reticleAngle += focus * 0.055 * DT / 16.7;
+  const r = r0 * 0.92 * (1 + beatEnergy * 0.03 + focus * 0.012);
+  ctx.strokeStyle = acc(0.26 + focus * 0.30);
   ctx.lineWidth = 1.1;
+  const span = 0.62 + focus * 0.22;
   for (let k = 0; k < 4; k++) {
-    const a0 = k * Math.PI / 2 + 0.30 + t * 0.0016;
-    ctx.beginPath(); ctx.arc(cx, cy, r, a0, a0 + 0.62); ctx.stroke();
+    const a0 = k * Math.PI / 2 + reticleAngle;
+    ctx.beginPath(); ctx.arc(cx, cy, r, a0, a0 + span); ctx.stroke();
   }
-  ctx.strokeStyle = acc(0.16);
+  ctx.strokeStyle = acc(0.16 + focus * 0.20);
   ctx.beginPath(); ctx.arc(cx, cy, r * 1.13, 0, Math.PI * 2); ctx.stroke();
-  const tick = 14;
-  ctx.strokeStyle = acc(0.42);
+  const tick = 14 + focus * 8;
+  ctx.strokeStyle = acc(0.42 + focus * 0.35);
   [[0, -1], [0, 1], [-1, 0], [1, 0]].forEach(([dx, dy]) => {
     ctx.beginPath();
     ctx.moveTo(cx + dx * r * 1.13, cy + dy * r * 1.13);
@@ -905,23 +1646,79 @@ function drawReticle(r0) {
     ctx.stroke();
   });
 }
+// Data pathways: lines from the subject out to the columns, drawn only
+// while responding. They illuminate, carry the response outward, and go.
+function drawPathways(r0) {
+  const a = AI.pathway;
+  if (a < 0.02) return;
+  const cx = CX + parallax.x * 0.1, cy = CY + parallax.y * 0.1;
+  const pad = 30, colW = Math.min(232, W * 0.185);
+  const targets = [
+    { x: pad + colW, y: H * 0.30 }, { x: pad + colW, y: H * 0.62 },
+    { x: W - pad - colW, y: H * 0.30 }, { x: W - pad - colW, y: H * 0.62 },
+  ];
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineWidth = 1;
+  targets.forEach((tg, i) => {
+    const reach = smoothstep(i * 0.06, 0.55 + i * 0.06, a);
+    if (reach <= 0) return;
+    const ex = cx + (tg.x - cx) * reach, ey = cy + (tg.y - cy) * reach;
+    const g = ctx.createLinearGradient(cx, cy, tg.x, tg.y);
+    g.addColorStop(0, acc(0.34 * a)); g.addColorStop(1, acc(0.04 * a));
+    ctx.strokeStyle = g;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.fillStyle = acc(0.55 * a);
+    ctx.fillRect(ex - 1.5, ey - 1.5, 3, 3);
+  });
+  ctx.restore();
+}
+// Status strip. It used to scroll a single long string across the bottom
+// forever, which is a loop that never even reacts to anything. The same
+// measured values are now pinned in place; a field flashes for a moment
+// when its value actually changes, and is otherwise perfectly still.
+const FIELD_STATE = new Map();
 function drawTicker() {
   const y = H - 15;
   ctx.font = "9.5px 'Share Tech Mono', monospace";
-  ctx.fillStyle = acc(0.34);
-  // Ticker carries live measured values, not canned strings.
-  const msg = 'SUBJECT ' + modelCfg().label + ' / ' + modelCfg().id +
-    '  ·  ' + heroPoints.length.toLocaleString() + ' PTS @ ' + (SYS.fps || '--') + 'FPS / ' + SYS.frameMs.toFixed(1) + 'MS' +
-    '  ·  GPU ' + String(SYS.gpu).slice(0, 44) +
-    '  ·  ' + (SYS.cores || '--') + ' THREADS · LOAD IDX ' + (SYS.loadIdx * 100).toFixed(0) + '% · LAG ' + SYS.loopLag.toFixed(1) + 'MS' +
-    '  ·  HEAP ' + fmtBytes(SYS.heapUsed) +
-    '  ·  AUDIO ' + (audioActive ? 'LIVE' : 'SIM') + ' RMS ' + audioRMS.toFixed(3) + (bpm ? ' · ' + bpm + ' BPM' : '') +
-    '  ·  ' + (SYS.online ? 'LINK UP' : 'LINK DOWN') +
-    '  ·  UP ' + fmtDur((Date.now() - SYS.bootAt) / 1000) + '  ·  ';
-  const wpx = ctx.measureText(msg).width;
-  const off = (t * 0.6) % wpx;
-  ctx.fillText(msg, W - off, y);
-  ctx.fillText(msg, W - off + wpx, y);
+  ctx.textAlign = 'left';
+  const fields = [
+    ['SUBJ', modelCfg().id],
+    ['PTS', heroPoints.length.toLocaleString()],
+    ['FPS', (SYS.fps || '--') + '/' + SYS.frameMs.toFixed(1) + 'MS'],
+    ['GPU', ellipsize(String(SYS.gpu), 30)],
+    ['THR', String(SYS.cores || '--')],
+    ['LOAD', (SYS.loadIdx * 100).toFixed(0) + '%'],
+    ['LAG', SYS.loopLag.toFixed(1) + 'MS'],
+    ['HEAP', fmtBytes(SYS.heapUsed)],
+    ['AUDIO', audioActive ? 'LIVE ' + audioRMS.toFixed(3) + (bpm ? ' ' + bpm + 'BPM' : '') : (audioLinked ? 'SILENT' : 'NO LINK')],
+    ['LINK', SYS.online ? 'UP' : 'DOWN'],
+    ['UP', fmtDur((Date.now() - SYS.bootAt) / 1000)],
+    ['STATE', STATE_LABEL[AI.state]],
+  ];
+  if (mediaHasTrack()) fields.splice(1, 0, ['♪', ellipsize(MEDIA.title, 40)]);
+  let x = 30;
+  for (const [k, v] of fields) {
+    const prev = FIELD_STATE.get(k);
+    if (!prev) FIELD_STATE.set(k, { v, at: 0 });
+    else if (prev.v !== v) { prev.v = v; prev.at = NOW; }
+    // UP and FPS change constantly by nature; flashing them would be a
+    // loop wearing a costume, so they are excluded from the highlight.
+    const flashable = k !== 'UP' && k !== 'FPS' && k !== 'LAG' && k !== 'HEAP' && k !== 'AUDIO';
+    const fl = flashable ? Math.max(0, 1 - (NOW - (FIELD_STATE.get(k).at || -1e9)) / 900) : 0;
+    const text = k + ' ' + v;
+    const wpx = ctx.measureText(text).width;
+    if (x + wpx > W - 30) break;
+    ctx.fillStyle = acc(0.44 + fl * 0.50);
+    ctx.fillText(text, x, y);
+    if (fl > 0.02) {
+      ctx.fillStyle = acc(0.20 * fl);
+      ctx.fillRect(x - 3, y - 9, wpx + 6, 12);
+    }
+    x += wpx + 18;
+    ctx.fillStyle = acc(0.14);
+    ctx.fillText('·', x - 12, y);
+  }
   ctx.strokeStyle = acc(0.12);
   ctx.beginPath(); ctx.moveTo(0, H - 26); ctx.lineTo(W, H - 26); ctx.stroke();
 }
@@ -956,7 +1753,8 @@ function drawHeader() {
   ctx.fillText(now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: '2-digit' }).toUpperCase()
     + '  UTC' + (tz >= 0 ? '+' : '') + tz
     + '  ·  ' + W + '×' + H + '@' + (window.devicePixelRatio || 1).toFixed(2) + 'x'
-    + '  ·  AUDIO ' + (audioActive ? 'LIVE' : 'SIM'), W - 34, 58);
+    + '  ·  AUDIO ' + (audioActive ? 'LIVE' : audioLinked ? 'SILENT' : 'NO LINK')
+    + '  ·  ' + STATE_LABEL[AI.state], W - 34, 58);
   ctx.textAlign = 'left';
 }
 function drawCornerBrackets() {
@@ -969,18 +1767,54 @@ function drawCornerBrackets() {
     ctx.stroke();
   });
 }
+// Attention readout under the subject: the listening indicator, the speech
+// waveform, and the current state. All three fade in on a transition and
+// fade out again — at idle this area is empty except for a single dim dot.
+function drawAttentionState(r0) {
+  const cx = CX + parallax.x * 0.1;
+  const y = Math.min(H - 92, CY + r0 * 0.86);
+  PACKET_TARGETS.hero = { x0: cx, y0: y, x1: cx, y1: CY };
+  const listening = AI.state === 'LISTENING' ? 1 : 0;
+  const responding = AI.state === 'RESPONDING' ? 1 : 0;
+  const show = Math.max(listening, responding, fx('listen-in'), fx('respond'), AI.brightness);
+  ctx.textAlign = 'center';
+  if (show < 0.02) {
+    // idle: one small, steady mark. Nothing to watch, nothing moving.
+    ctx.fillStyle = acc(0.20);
+    ctx.beginPath(); ctx.arc(cx, y, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.textAlign = 'left';
+    return;
+  }
+  const label = responding ? 'RESPONDING' : listening ? 'LISTENING' : STATE_LABEL[AI.state];
+  ctx.font = "9.5px 'Share Tech Mono', monospace";
+  ctx.fillStyle = acc(0.30 + show * 0.55);
+  ctx.fillText(label, cx, y + 4);
+  // The indicator dot brightens with actual signal level rather than
+  // blinking on a timer, so silence shows as a dim, still dot.
+  const level = Math.min(1, audioRMS * 6);
+  ctx.beginPath();
+  ctx.arc(cx - ctx.measureText(label).width / 2 - 9, y, 2.2 + level * 1.6, 0, Math.PI * 2);
+  ctx.fillStyle = acc(0.30 + (responding ? 0.6 : level) * 0.65);
+  ctx.fill();
+  // Waveform expands out of the indicator line, then collapses back.
+  const ww = Math.min(360, W * 0.28) * smoothstep(0, 1, show);
+  if (ww > 20) drawWaveform(cx - ww / 2, y + 10, ww, 34, show);
+  ctx.textAlign = 'left';
+}
+
 const fpsHist = [], lagHist = [], rmsHist = [];
 function pushHist(a, v, n) { a.push(v); if (a.length > n) a.shift(); }
 
 function drawHUD(r0) {
-  const pad = 30;
-  const colW = Math.min(232, W * 0.185);
-  const left = pad, right = W - pad - colW;
+  // Single source of truth for the column geometry, shared with globeRect().
+  const { pad, colW, left, right } = hudLayout();
   const small = W < 1180 || H < 640;
 
   drawHeader();
   drawCornerBrackets();
   drawReticle(r0);
+  drawPathways(r0);
+  drawAttentionState(r0);
   drawTicker();
   if (small) { drawSpectrumBar(); return; }
 
@@ -990,38 +1824,49 @@ function drawHUD(r0) {
   let y = 92;
 
   // --- RENDER ENGINE (measured) ---
-  panel(left, y, colW, 96, 'RENDER ENGINE', 'MEASURED');
+  panel(left, y, colW, 98, 'RENDER ENGINE', CONFIG.idlePower ? 'MEASURED · IDLE THROTTLE' : 'MEASURED', fx('panel-render'));
   rows(left + ix, y + 15, 13, [
-    ['FPS', SYS.fps ? String(SYS.fps) : '—', SYS.fps && SYS.fps < 40 ? 'rgba(255,150,120,0.9)' : 'rgba(150,255,200,0.85)', iw],
+    // A throttled frame rate is the design working, not a fault, so it is
+    // labelled rather than flagged red.
+    ['FPS', SYS.fps ? String(SYS.fps) + (throttled ? ' IDLE' : '') : '—',
+      throttled ? acc(0.55) : (SYS.fps && SYS.fps < 40 ? ink(0.9, '255,150,120') : ink(0.85, '150,255,200')), iw],
     ['FRAME', SYS.frameMs ? SYS.frameMs.toFixed(1) + 'ms' : '—', null, iw],
     ['PEAK', SYS.frameMax ? SYS.frameMax.toFixed(1) + 'ms' : '—', null, iw],
     ['REFRESH~', SYS.refresh ? SYS.refresh + 'Hz' : '—', null, iw],
     ['POINTS', heroPoints.length.toLocaleString(), null, iw],
   ]);
-  history(left + ix, y + 72, iw, 18, fpsHist, 144);
-  y += 96 + 34;
+  // y+72 left only 2px between the POINTS row's descenders and the plot
+  // frame; 6px is the minimum that reads as a separate element.
+  history(left + ix, y + 76, iw, 16, fpsHist, 144);
+  y += 98 + 34;
 
   // --- GPU (real device string) ---
-  panel(left, y, colW, 76, 'GRAPHICS DEVICE', 'WEBGL / REAL');
+  panel(left, y, colW, 76, 'GRAPHICS DEVICE', 'WEBGL / REAL', 0);
   ctx.font = "8.5px 'Share Tech Mono', monospace";
-  ctx.fillStyle = 'rgba(210,240,255,0.80)';
+  ctx.fillStyle = ink(0.80, '210,240,255');
   wrapText(SYS.gpu, left + ix, y + 15, iw, 11, 3);
   ctx.fillStyle = acc(0.40);
   ctx.fillText('TEX ' + SYS.maxTex + '  ·  ' + (SYS.gpuVendor || 'VENDOR N/A').slice(0, 22), left + ix, y + 66);
   y += 76 + 34;
 
   // --- PROCESSOR (cores real; load is a measured index, not a system %) ---
-  panel(left, y, colW, 86, 'PROCESSOR', 'CORES REAL · LOAD = INDEX');
+  panel(left, y, colW, 92, 'PROCESSOR', 'CORES REAL · LOAD = INDEX', fx('panel-cpu'));
   rows(left + ix, y + 15, 13, [
     ['THREADS', SYS.cores ? String(SYS.cores) : '—', null, iw],
     ['PLATFORM', String(SYS.platform).slice(0, 14), null, iw],
   ]);
-  meter(left + ix, y + 40, iw, 9, SYS.loadIdx, 'LOAD IDX', (SYS.loadIdx * 100).toFixed(0) + '%', SYS.loadIdx > 0.6);
-  meter(left + ix, y + 64, iw, 9, Math.min(1, SYS.loopLag / 40), 'LOOP LAG', SYS.loopLag.toFixed(1) + 'ms', SYS.loopLag > 20);
-  y += 86 + 34;
+  // y+40 put the LOAD IDX caption hard against the PLATFORM row's
+  // descenders once the value font grew to 10px — the two read as one
+  // smudged line at 1:1. These need ~11px of clear air above the caption.
+  meter(left + ix, y + 46, iw, 9, SYS.loadIdx, 'LOAD IDX', (SYS.loadIdx * 100).toFixed(0) + '%', SYS.loadIdx > 0.6);
+  meter(left + ix, y + 69, iw, 9, Math.min(1, SYS.loopLag / 40), 'LOOP LAG', SYS.loopLag.toFixed(1) + 'ms', SYS.loopLag > 20);
+  y += 92 + 34;
 
   // --- MEMORY (real heap + storage) ---
-  panel(left, y, colW, 78, 'MEMORY', 'HEAP + STORAGE');
+  // Also the destination for storage/allocation packets, so a file landing
+  // on disk is something you can watch arrive.
+  PACKET_TARGETS.mem = { x0: CX, y0: CY, x1: left + colW / 2, y1: y + 40 };
+  panel(left, y, colW, 78, 'MEMORY', 'HEAP + STORAGE', fx('panel-mem'));
   if (SYS.heapLimit) {
     meter(left + ix, y + 14, iw, 9, SYS.heapUsed / SYS.heapLimit, 'JS HEAP',
       fmtBytes(SYS.heapUsed) + '/' + fmtBytes(SYS.heapLimit), SYS.heapUsed / SYS.heapLimit > 0.8);
@@ -1033,11 +1878,16 @@ function drawHUD(r0) {
   meter(left + ix, y + 40, iw, 9, SYS.storageQuota ? SYS.storageUsed / SYS.storageQuota : 0, 'STORAGE',
     SYS.storageQuota ? fmtBytes(SYS.storageUsed) + '/' + fmtBytes(SYS.storageQuota) : '—');
   rows(left + ix, y + 68, 12, [['DEVICE RAM', SYS.deviceMem ? '≥' + SYS.deviceMem + 'GB' : 'N/A', null, iw]]);
+  y += 78 + 34;
+
+  // --- EVENT LOG (only real events, no filler) ---
+  const logH = Math.min(150, H - 60 - y);
+  if (logH > 60) drawLogPanel(left, y, colW, logH, fx('notify') * 0.6);
 
   // ================= RIGHT: subject + signal =================
   y = 92;
   const cfg = modelCfg();
-  panel(right, y, colW, 84, 'TARGET LOCK', 'SUBJECT PROFILE');
+  panel(right, y, colW, 84, 'TARGET LOCK', 'SUBJECT PROFILE', fx('refocus') * 0.7);
   ctx.font = "10px 'Share Tech Mono', monospace";
   ctx.fillStyle = acc(0.82);
   ctx.fillText(cfg.label, right + ix, y + 16);
@@ -1050,13 +1900,14 @@ function drawHUD(r0) {
   y += 84 + 34;
 
   if (CONFIG.globe && globePoints.length) {
-    panel(right, y, colW, colW * 0.82, 'ORBITAL', 'GEOMETRY: REAL MESH');
+    panel(right, y, colW, colW * 0.82, 'ORBITAL', 'GEOMETRY: REAL MESH', fx('panel-link') * 0.8);
     y += colW * 0.82 + 34;
   }
 
   // --- AUDIO ANALYSIS (all real, from the system audio stream) ---
   const audioH = 132;
-  panel(right, y, colW, audioH, 'AUDIO ANALYSIS', audioActive ? 'SYSTEM AUDIO · LIVE' : 'NO AUDIO LINK · SIM');
+  panel(right, y, colW, audioH, 'AUDIO ANALYSIS',
+    audioActive ? 'SYSTEM AUDIO · LIVE' : (audioLinked ? 'STREAM SILENT' : 'NO AUDIO LINK'), fx('panel-audio'));
   stereoSpectrum(right + ix, y + 8, iw, 40);
   meter(right + ix, y + 62, iw, 8, Math.min(1, bassEnergy * 2.2), 'BASS', (bassEnergy * 100).toFixed(0));
   meter(right + ix, y + 82, iw, 8, Math.min(1, midEnergy * 2.6), 'MID', (midEnergy * 100).toFixed(0));
@@ -1064,19 +1915,55 @@ function drawHUD(r0) {
   balanceMeter(right + ix, y + 116, iw, 10);
   y += audioH + 34;
 
+  // --- MEDIA SESSION (title/artist from the host, not from the spectrum) ---
+  const mediaH = 84;
+  if (y + mediaH < H - 70) {
+    const sub = !MEDIA.available ? 'NO HOST BRIDGE'
+      : (mediaHasTrack() ? 'WINDOWS SMTC · ' + MEDIA.state.toUpperCase() : 'NO MEDIA SESSION');
+    panel(right, y, colW, mediaH, 'NOW PLAYING', sub, fx('panel-media'));
+    if (mediaHasTrack()) {
+      // Title wraps to two lines instead of scrolling — a marquee would be
+      // exactly the kind of loop this build exists to avoid.
+      ctx.font = "10px 'Share Tech Mono', monospace";
+      ctx.fillStyle = ink(0.96, '232,250,255');
+      ctx.textAlign = 'left';
+      wrapText(MEDIA.title, right + ix, y + 15, iw, 12, 2);
+      ctx.font = "8.5px 'Share Tech Mono', monospace";
+      ctx.fillStyle = acc(0.62);
+      ctx.fillText(ellipsize(MEDIA.artist || MEDIA.album || '—', 30), right + ix, y + 45);
+      // transport state + elapsed/total
+      const pos = MEDIA.duration > 0 ? Math.min(1, MEDIA.position / MEDIA.duration) : 0;
+      const tl = MEDIA.duration > 0
+        ? fmtClock(MEDIA.position) + ' / ' + fmtClock(MEDIA.duration)
+        : (MEDIA.state === 'playing' ? 'LIVE' : '—');
+      meter(right + ix, y + 60, iw, 7, pos, MEDIA.state === 'playing' ? '▶ PLAYING' : (MEDIA.state === 'paused' ? '❚❚ PAUSED' : '■ STOPPED'), tl);
+    } else {
+      ctx.font = "8.5px 'Share Tech Mono', monospace";
+      ctx.fillStyle = acc(0.34);
+      ctx.textAlign = 'left';
+      wrapText(MEDIA.available
+        ? 'Host bridge present. Start playback in any app that reports to Windows media controls.'
+        : 'Requires Wallpaper Engine on Windows. Unavailable in a plain browser.',
+        right + ix, y + 18, iw, 11, 4);
+    }
+    y += mediaH + 34;
+  }
+
   // --- SIGNAL STATS ---
-  panel(right, y, colW, 74, 'SIGNAL', 'DERIVED');
+  if (y + 74 > H - 60) { drawSpectrumBar(); return; }
+  panel(right, y, colW, 74, 'SIGNAL', 'DERIVED', 0);
   rows(right + ix, y + 15, 13, [
     ['RMS', audioRMS.toFixed(3), null, iw],
     ['PEAK', audioPeak.toFixed(3), null, iw],
     ['CENTROID', (audioCentroid * 100).toFixed(0) + '%', null, iw],
-    ['BPM', bpm ? String(bpm) : '—', bpm ? 'rgba(150,255,200,0.85)' : null, iw],
+    ['BPM', bpm ? String(bpm) : '—', bpm ? ink(0.85, '150,255,200') : null, iw],
   ]);
   y += 74 + 34;
 
   // --- POWER / LINK / SESSION ---
   const b = SYS.battery;
-  panel(right, y, colW, 78, 'POWER & LINK', 'PLATFORM APIS');
+  PACKET_TARGETS.link = { x0: CX, y0: CY, x1: right + colW / 2, y1: y + 50 };
+  panel(right, y, colW, 78, 'POWER & LINK', 'PLATFORM APIS', Math.max(fx('panel-power'), fx('panel-link')));
   if (b) {
     meter(right + ix, y + 14, iw, 9, b.level, b.charging ? 'BATTERY (CHG)' : 'BATTERY',
       (b.level * 100).toFixed(0) + '%', !b.charging && b.level < 0.2);
@@ -1087,7 +1974,7 @@ function drawHUD(r0) {
   }
   rows(right + ix, y + 40, 13, [
     ['LINK', SYS.online ? (SYS.netType ? SYS.netType.toUpperCase() : 'ONLINE') : 'OFFLINE',
-      SYS.online ? 'rgba(150,255,200,0.85)' : 'rgba(255,140,120,0.9)', iw],
+      SYS.online ? ink(0.85, '150,255,200') : ink(0.9, '255,140,120'), iw],
     ['DOWNLINK', SYS.netDown ? SYS.netDown.toFixed(1) + 'Mb/s' : '—', null, iw],
     ['UPTIME', fmtDur((Date.now() - SYS.bootAt) / 1000), null, iw],
   ]);
@@ -1106,56 +1993,344 @@ function wrapText(text, x, y, maxW, lineH, maxLines) {
   if (line && n < maxLines) ctx.fillText(line, x, y + n * lineH);
 }
 // Globe rasterises into the pixel layer, so its position must be known
-// before the HUD chrome is drawn around it.
+// before the HUD chrome is drawn around it. These constants used to be
+// their own copy — pad 34 / colW 210 / y 228 against the HUD's pad 30 /
+// colW 232 / y 210 — so the sphere sat low and left of the panel that was
+// supposed to frame it. It now derives from the same layout the HUD uses.
+function hudLayout() {
+  const pad = 30;
+  const colW = Math.min(232, W * 0.185);
+  return { pad, colW, left: pad, right: W - pad - colW };
+}
 function globeRect() {
-  const pad = 34, colW = Math.min(210, W * 0.17);
-  return { x: W - pad - colW, y: 96 + 92 + 40, w: colW, h: colW };
+  const L = hudLayout();
+  const h = L.colW * 0.82;
+  return { x: L.right, y: 92 + 84 + 34, w: L.colW, h };
+}
+const GLOBE_TILT = 0.30;   // axial tilt, so it reads as a globe not a disc
+// Composites the globe buffer and draws its instrument furniture. The
+// sphere is centred on the panel it sits in — previously the render used a
+// second, stale copy of the layout constants and sat visibly low and left
+// of its own frame.
+function drawGlobeLayer(g) {
+  const cx = g.x + g.w / 2, cy = g.y + g.h / 2;
+  const R = g.w * 0.30;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.drawImage(globeCanvas, g.x | 0, g.y | 0);
+
+  // limb glow: atmosphere at the edge of the sphere
+  const limb = ctx.createRadialGradient(cx, cy, R * 0.82, cx, cy, R * 1.22);
+  limb.addColorStop(0, acc(0));
+  limb.addColorStop(0.45, acc(0.10 + fx('panel-link') * 0.14));
+  limb.addColorStop(1, acc(0));
+  ctx.fillStyle = limb;
+  ctx.beginPath(); ctx.arc(cx, cy, R * 1.22, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // Orbit ring, inclined and static. The globe turns inside it, which
+  // gives the rotation something to be measured against.
+  ctx.save();
+  ctx.strokeStyle = acc(0.26);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, R * 1.30, R * 0.34, -0.34, 0, Math.PI * 2);
+  ctx.stroke();
+  // a marker riding the ring at the globe's current meridian: this is the
+  // readout that makes the spin legible rather than decorative
+  const mx = cx + Math.cos(globeYaw) * R * 1.30 * Math.cos(-0.34) - Math.sin(globeYaw) * R * 0.34 * Math.sin(-0.34);
+  const my = cy + Math.cos(globeYaw) * R * 1.30 * Math.sin(-0.34) + Math.sin(globeYaw) * R * 0.34 * Math.cos(-0.34);
+  ctx.fillStyle = acc(0.85);
+  ctx.beginPath(); ctx.arc(mx, my, 2, 0, Math.PI * 2); ctx.fill();
+  // graticule: equator plus the terminator, drawn as flattened ellipses
+  ctx.strokeStyle = acc(0.16);
+  ctx.beginPath(); ctx.ellipse(cx, cy, R, R * Math.abs(Math.sin(GLOBE_TILT)) + 1, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(cx, cy, Math.abs(Math.cos(globeYaw)) * R + 0.5, R, 0, 0, Math.PI * 2); ctx.stroke();
+  // heading readout
+  ctx.font = "7.5px 'Share Tech Mono', monospace";
+  ctx.fillStyle = acc(0.42);
+  ctx.textAlign = 'center';
+  ctx.fillText('MER ' + ((globeYaw * 180 / Math.PI) | 0).toString().padStart(3, '0') + '°', cx, g.y + g.h - 2);
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+// ---------- Shared projection ----------
+// Same transform the rasteriser uses, for the handful of HUD elements that
+// have to sit exactly on the geometry: eyes, callout anchors, flares.
+function projectPoint(lx, ly, lz, r0) {
+  const cy = Math.cos(heroYaw), sy = Math.sin(heroYaw);
+  const cp = Math.cos(heroPitch()), sp = Math.sin(heroPitch());
+  const x1 = lx * cy + lz * sy, z1 = -lx * sy + lz * cy;
+  const y2 = ly * cp - z1 * sp, z2 = ly * sp + z1 * cp;
+  const persp = FOCAL / (FOCAL - z2);
+  return {
+    x: CX + parallax.x * 0.1 + x1 * r0 * persp,
+    y: CY + parallax.y * 0.1 - y2 * r0 * persp,
+    z: z2, persp,
+  };
+}
+
+// ---------- Projector base ----------
+// A light pool on the floor and the volume cone above it. Nothing here
+// moves; it is static light whose intensity tracks state. This is the
+// single cheapest cue that the subject is being *projected* rather than
+// just drawn — without a floor contact the bust reads as a sticker.
+function drawProjector(r0) {
+  if (!CONFIG.projector) return;
+  const cx = CX + parallax.x * 0.1;
+  const baseY = CY + r0 * 0.92;
+  const lift = 0.55 + AI.brightness * 0.45 + fx('refocus') * 0.20;
+  const rx = r0 * 0.72, ry = r0 * 0.115;
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+
+  // volume cone: narrow at the shoulders, wide at the floor
+  const cone = ctx.createLinearGradient(0, baseY - r0 * 1.15, 0, baseY);
+  cone.addColorStop(0, acc(0));
+  cone.addColorStop(0.55, acc(0.020 * lift));
+  cone.addColorStop(1, acc(0.075 * lift));
+  ctx.fillStyle = cone;
+  ctx.beginPath();
+  ctx.moveTo(cx - r0 * 0.20, baseY - r0 * 1.15);
+  ctx.lineTo(cx + r0 * 0.20, baseY - r0 * 1.15);
+  ctx.lineTo(cx + rx, baseY);
+  ctx.lineTo(cx - rx, baseY);
+  ctx.closePath();
+  ctx.fill();
+
+  // floor pool
+  ctx.save();
+  ctx.translate(cx, baseY); ctx.scale(1, ry / rx); ctx.translate(-cx, -baseY);
+  const pool = ctx.createRadialGradient(cx, baseY, 0, cx, baseY, rx);
+  pool.addColorStop(0, acc(0.30 * lift));
+  pool.addColorStop(0.30, acc(0.11 * lift));
+  pool.addColorStop(0.72, acc(0.028 * lift));
+  pool.addColorStop(1, acc(0));
+  ctx.fillStyle = pool;
+  ctx.beginPath(); ctx.arc(cx, baseY, rx, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // emitter rings — the pad the projection stands on
+  ctx.lineWidth = 1;
+  [0.42, 0.68, 1.0].forEach((f, i) => {
+    ctx.strokeStyle = acc((0.20 - i * 0.05) * lift);
+    ctx.beginPath();
+    ctx.ellipse(cx, baseY, rx * f, ry * f, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+  // tick marks around the outer ring, so it reads as an instrument
+  ctx.strokeStyle = acc(0.24 * lift);
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    const c0 = Math.cos(a), s0 = Math.sin(a);
+    const long = i % 6 === 0 ? 8 : 4;
+    ctx.beginPath();
+    ctx.moveTo(cx + c0 * rx, baseY + s0 * ry);
+    ctx.lineTo(cx + c0 * (rx + long), baseY + s0 * (ry + long * ry / rx));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ---------- Biometric callouts ----------
+// Leader lines onto real landmarks with measured values. They snap in on a
+// lock and fade out again — the classic targeting-overlay beat, but only
+// ever as a reaction, never as ambient decoration.
+function calloutPoints() {
+  const cfg = modelCfg();
+  const s = cfg.scale, oy = cfg.offY * cfg.scale;
+  if (cfg.eyes) {
+    return [
+      { x: -0.20, y: HUMAN.eyeY * s + oy, z: 0.30, side: -1, label: 'OCULAR L', val: 'TRACK' },
+      { x: 0.20, y: HUMAN.eyeY * s + oy, z: 0.30, side: 1, label: 'OCULAR R', val: 'TRACK' },
+      { x: 0.02, y: HUMAN.noseY * s + oy, z: 0.42, side: 1, label: 'NASAL', val: 'REF' },
+      { x: -0.05, y: HUMAN.mouthY * s + oy, z: 0.34, side: -1, label: 'ORAL', val: null },
+      { x: 0.06, y: HUMAN.chinY * s + oy, z: 0.28, side: 1, label: 'MANDIBLE', val: null },
+    ];
+  }
+  return [
+    { x: -0.26, y: 0.28 * s + oy, z: 0.24, side: -1, label: 'UPPER', val: 'REF' },
+    { x: 0.26, y: 0.02 * s + oy, z: 0.24, side: 1, label: 'MID', val: null },
+    { x: -0.18, y: -0.26 * s + oy, z: 0.24, side: -1, label: 'LOWER', val: null },
+  ];
+}
+function drawCallouts(r0) {
+  if (!CONFIG.callouts) return;
+  const a = Math.max(fx('refocus'), fx('respond') * 0.85);
+  if (a < 0.03) return;
+  const pts = calloutPoints();
+  ctx.save();
+  ctx.font = "8px 'Share Tech Mono', monospace";
+  ctx.lineWidth = 1;
+  pts.forEach((p, i) => {
+    // staggered reveal, so they arrive as a sequence rather than a flash
+    const stagger = smoothstep(i * 0.10, 0.35 + i * 0.10, a);
+    if (stagger <= 0.01) return;
+    const q = projectPoint(p.x, p.y, p.z, r0);
+    const dir = p.side;
+    const elbowX = q.x + dir * r0 * 0.38 * stagger;
+    const tipX = elbowX + dir * 26 * stagger;
+    // marker
+    ctx.strokeStyle = acc(0.75 * stagger);
+    ctx.beginPath(); ctx.arc(q.x, q.y, 2.4, 0, Math.PI * 2); ctx.stroke();
+    // leader: short diagonal into a horizontal run, drafting-style
+    ctx.strokeStyle = acc(0.40 * stagger);
+    ctx.beginPath();
+    ctx.moveTo(q.x + dir * 4, q.y);
+    ctx.lineTo(elbowX, q.y - 12 * stagger);
+    ctx.lineTo(tipX, q.y - 12 * stagger);
+    ctx.stroke();
+    ctx.textAlign = dir > 0 ? 'left' : 'right';
+    ctx.fillStyle = acc(0.80 * stagger);
+    ctx.fillText(p.label, tipX + dir * 4, q.y - 15 * stagger);
+    if (p.val) {
+      ctx.fillStyle = 'rgba(210,240,255,' + (0.55 * stagger) + ')';
+      ctx.fillText(p.val, tipX + dir * 4, q.y - 6 * stagger);
+    }
+  });
+  ctx.textAlign = 'left';
+  ctx.restore();
 }
 
 // ---------- Eye glow ----------
+// Built in layers the way a practical light is photographed, because a
+// single radial gradient always reads as a blob rather than an eye:
+//   halo    — soft falloff into the surrounding cloud
+//   iris    — a defined accent-coloured ring, the thing that gives it a
+//             boundary and therefore a sense of being an object
+//   core    — small, white-hot, clipped to the lid aperture
+//   flare   — horizontal anamorphic streak plus a shorter vertical one
+//   catch   — an off-centre specular, which is what sells "wet" and alive
+// Saccades: on a refocus the gaze overshoots by a hair and settles. Real
+// eyes do not glide onto a target, and the tell is what makes it read as
+// looking rather than panning.
+let saccadeX = 0, saccadeY = 0, saccadeSeed = 0;
+function updateSaccade() {
+  const f = fx('refocus');
+  if (f > 0.02) {
+    if (!saccadeSeed) saccadeSeed = Math.random() * 1000 + 1;
+    const p = 1 - f;
+    saccadeX = Math.sin(p * 9 + saccadeSeed) * f * 0.20;
+    saccadeY = Math.cos(p * 7 + saccadeSeed) * f * 0.13;
+  } else { saccadeSeed = 0; saccadeX = 0; saccadeY = 0; }
+}
 function drawEyeGlow(r0) {
   if (!EYE_ANCHORS.length) return;
   const open = blinkOpenness();
   if (open < 0.04) return;
-  const mnx = CONFIG.mouseReactive ? mouseNX : 0, mny = CONFIG.mouseReactive ? mouseNY : 0;
-  const glow = (0.75 + beatEnergy * 0.5) * open;
+  // Derived from the already-eased head pose rather than the raw cursor, so
+  // the gaze returns to centre with the head instead of snapping when the
+  // cursor goes stale.
+  // Guard the divisions: a look range of 0 is a legal setting and would
+  // otherwise produce NaN coordinates and paint the eye glow at infinity.
+  const my_ = maxYaw(), mp_ = maxPitch();
+  const mnx = (my_ > 1e-6 ? headYaw / my_ : 0) + saccadeX;
+  const mny = (mp_ > 1e-6 ? -headPitch / mp_ : 0) + saccadeY;
+  // Eyes stay softly lit at rest and brighten only when the hologram is
+  // actually doing something. No pulsing, no idle throb.
+  const glow = (0.70 + beatEnergy * 0.5 + AI.brightness * 0.55) * open;
+  const focus = fx('refocus') + fx('respond') * 0.7;
   const cy = Math.cos(heroYaw), sy = Math.sin(heroYaw);
   const cp = Math.cos(heroPitch()), sp = Math.sin(heroPitch());
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  EYE_ANCHORS.forEach(base => {
+  EYE_ANCHORS.forEach((base) => {
     const lx = base.x + mnx * 0.026, ly = base.y - mny * 0.020, lz = base.z;
     const x1 = lx * cy + lz * sy, z1 = -lx * sy + lz * cy;
     const y2 = ly * cp - z1 * sp, z2 = ly * sp + z1 * cp;
     const persp = FOCAL / (FOCAL - z2);
     const sx = CX + parallax.x * 0.1 + x1 * r0 * persp;
     const syy = CY + parallax.y * 0.1 - y2 * r0 * persp;
-    const w = r0 * 0.115 * persp, h = r0 * 0.017 * persp * open;
-    const g = ctx.createRadialGradient(sx, syy, 0, sx, syy, w);
-    g.addColorStop(0, `rgba(255,255,255,${Math.min(1, 0.9 * glow)})`);
-    g.addColorStop(0.14, acc(Math.min(1, 0.62 * glow)));
-    g.addColorStop(0.42, acc(0.22 * glow));
-    g.addColorStop(1, acc(0));
+    // The lid aperture. Everything below is squashed into this ratio, so a
+    // blink closes the whole assembly rather than just dimming it.
+    const w = r0 * 0.118 * persp * (1 + focus * 0.10);
+    const h = r0 * 0.019 * persp * open;
+    const squash = h / w;
+
     ctx.save();
-    ctx.translate(sx, syy); ctx.scale(1, h / w); ctx.translate(-sx, -syy);
-    ctx.fillStyle = g;
+    ctx.translate(sx, syy); ctx.scale(1, squash); ctx.translate(-sx, -syy);
+
+    // halo
+    const halo = ctx.createRadialGradient(sx, syy, 0, sx, syy, w);
+    halo.addColorStop(0, acc(Math.min(1, 0.50 * glow)));
+    halo.addColorStop(0.35, acc(0.20 * glow));
+    halo.addColorStop(1, acc(0));
+    ctx.fillStyle = halo;
     ctx.beginPath(); ctx.arc(sx, syy, w, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-    const cw = w * 0.4, ch = Math.max(1, h * 0.30);
-    const core = ctx.createLinearGradient(sx - cw, 0, sx + cw, 0);
-    core.addColorStop(0, 'rgba(255,255,255,0)');
-    core.addColorStop(0.5, `rgba(255,255,255,${Math.min(1, 0.95 * glow)})`);
+
+    // iris — a ring, not a fill, so the eye has an edge
+    const irisR = w * 0.34;
+    const iris = ctx.createRadialGradient(sx, syy, irisR * 0.30, sx, syy, irisR);
+    iris.addColorStop(0, acc(0.12 * glow));
+    iris.addColorStop(0.72, acc(Math.min(1, 0.78 * glow)));
+    iris.addColorStop(1, acc(0.06 * glow));
+    ctx.fillStyle = iris;
+    ctx.beginPath(); ctx.arc(sx, syy, irisR, 0, Math.PI * 2); ctx.fill();
+
+    // core — small and genuinely white, which is what makes it read hot
+    const coreR = w * 0.13;
+    const core = ctx.createRadialGradient(sx, syy, 0, sx, syy, coreR);
+    core.addColorStop(0, `rgba(255,255,255,${Math.min(1, 1.0 * glow)})`);
+    core.addColorStop(0.55, `rgba(255,255,255,${Math.min(1, 0.55 * glow)})`);
     core.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = core;
-    ctx.fillRect(sx - cw, syy - ch / 2, cw * 2, ch);
+    ctx.beginPath(); ctx.arc(sx, syy, coreR, 0, Math.PI * 2); ctx.fill();
+
+    // catchlight, offset up-left toward the key
+    const cxr = sx - w * 0.11, cyr = syy - w * 0.06;
+    const catchR = w * 0.05;
+    const cg2 = ctx.createRadialGradient(cxr, cyr, 0, cxr, cyr, catchR);
+    cg2.addColorStop(0, `rgba(255,255,255,${Math.min(1, 0.85 * glow)})`);
+    cg2.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = cg2;
+    ctx.beginPath(); ctx.arc(cxr, cyr, catchR, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    // --- flares, drawn unsquashed so they stay optically horizontal ---
+    const fl = glow * (0.55 + focus * 0.45) * open;
+    if (fl > 0.03) {
+      const fw = w * (2.5 + focus * 0.8), fh = Math.max(1, h * 0.5);
+      const streak = ctx.createLinearGradient(sx - fw, 0, sx + fw, 0);
+      streak.addColorStop(0, acc(0));
+      streak.addColorStop(0.34, acc(0.10 * fl));
+      streak.addColorStop(0.5, `rgba(255,255,255,${Math.min(1, 0.62 * fl)})`);
+      streak.addColorStop(0.66, acc(0.10 * fl));
+      streak.addColorStop(1, acc(0));
+      ctx.fillStyle = streak;
+      ctx.fillRect(sx - fw, syy - fh / 2, fw * 2, fh);
+      // shorter vertical arm — the cross that reads as a lens artefact
+      const vh = w * 0.55 * open;
+      const vstreak = ctx.createLinearGradient(0, syy - vh, 0, syy + vh);
+      vstreak.addColorStop(0, acc(0));
+      vstreak.addColorStop(0.5, acc(Math.min(1, 0.30 * fl)));
+      vstreak.addColorStop(1, acc(0));
+      ctx.fillStyle = vstreak;
+      ctx.fillRect(sx - 0.6, syy - vh, 1.2, vh * 2);
+    }
+    // Focus ring: a hairline circle that snaps in when the gaze re-acquires.
+    if (focus > 0.04) {
+      ctx.strokeStyle = `rgba(255,255,255,${0.30 * focus * open})`;
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.ellipse(sx, syy, w * (1.15 - focus * 0.28), Math.max(0.6, h * 1.6), 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   });
   ctx.restore();
 }
 
 // ---------- Glitch & bloom ----------
+// Glitch is a Poisson process, not a cycle: rare and irregular when idle,
+// more likely on a hard beat or a state change. Because the trigger is
+// random, there is no interval for the eye to learn.
 let glitchFrames = 0;
 function maybeGlitch() {
-  if (beatEnergy > 0.42 && glitchFrames <= 0 && Math.random() < 0.14) glitchFrames = 2 + (Math.random() * 3 | 0);
+  if (glitchFrames <= 0) {
+    const rate = 0.035 + (beatEnergy > 0.42 ? 1.4 : 0) + fx('respond') * 0.9 + fx('notify') * 0.6;
+    if (chance(rate, DT)) glitchFrames = 2 + (Math.random() * 3 | 0);
+  }
   if (glitchFrames <= 0) return;
   glitchFrames--;
   const slices = 3 + (Math.random() * 3 | 0);
@@ -1171,7 +2346,7 @@ function drawBloom() {
   glowCtx.drawImage(canvas, 0, 0, gw, gh);
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = 0.40 + beatEnergy * 0.28;
+  ctx.globalAlpha = Math.min(1, (0.40 + beatEnergy * 0.28) * (CONFIG.bloomAmount / 100));
   ctx.filter = 'blur(3px)';
   ctx.drawImage(glowCanvas, 0, 0, W, H);
   ctx.restore();
@@ -1207,40 +2382,260 @@ function renderThemeRow() {
     row.appendChild(d);
   });
 }
-const densitySlider = document.getElementById('density-slider');
-const densityOut = document.getElementById('density-out');
-densitySlider.value = CONFIG.density; densityOut.textContent = CONFIG.density + '%';
-densitySlider.addEventListener('input', () => {
-  CONFIG.density = parseInt(densitySlider.value, 10);
-  densityOut.textContent = CONFIG.density + '%';
-  saveConfig(); rebuildHero();
+// ---------- Generated controls ----------
+// Declarative spec rather than hand-written markup: with this many knobs,
+// hand-wiring each one is exactly where drift between the UI and CONFIG
+// creeps in. Every control reads and writes CONFIG by key, so a control
+// cannot exist without a setting behind it, or a setting without a control.
+//   [key, label, min, max, unit, step, opts]
+const SETTING_GROUPS = [
+  { title: 'Subject', open: true,
+    sliders: [
+      ['density', 'Density', 40, 150, '%', 1, { rebuild: true }],
+      ['scale', 'Size', 50, 150, '%', 1, { rebuild: true }],
+      ['subjectBright', 'Exposure', 30, 200, '%', 1],
+      ['keyAmount', 'Key light', 0, 200, '%', 1],
+      ['rimAmount', 'Rim light', 0, 250, '%', 1],
+    ],
+    toggles: [] },
+  { title: 'Mouse & Look', open: true,
+    sliders: [
+      // Full sweep. Small values read as a glance; large values turn the
+      // subject into a turntable that tracks the cursor.
+      ['mouseRange', 'Look range', 0, 360, '°', 1],
+      ['mouseSmooth', 'Follow speed', 1, 100, '%', 1],
+      ['parallaxAmount', 'Parallax', 0, 250, '%', 1],
+      ['holdTime', 'Hold time', 0, 15, 's', 0.5],
+    ],
+    toggles: [
+      ['mouseReactive', 'Mouse look-at'],
+      ['invertX', 'Invert horizontal'],
+      ['invertY', 'Invert vertical'],
+      ['callouts', 'Biometric callouts'],
+    ] },
+  { title: 'Audio',
+    sliders: [
+      ['sensitivity', 'Audio gain', 50, 200, '%', 1],
+      ['jawAmount', 'Mouth', 0, 200, '%', 1],
+    ],
+    toggles: [] },
+  { title: 'Panels & HUD',
+    sliders: [
+      ['hudBright', 'Panels', 20, 200, '%', 1],
+    ],
+    toggles: [
+      ['hud', 'HUD panels'],
+      ['globe', 'Orbital globe'],
+      ['globeSpin', 'Globe rotation'],
+    ] },
+  { title: 'Optics',
+    sliders: [
+      ['bloomAmount', 'Bloom', 0, 200, '%', 1],
+      ['contrast', 'Contrast', 40, 160, '%', 1],
+      ['shimmerAmount', 'Shimmer', 0, 200, '%', 1],
+    ],
+    toggles: [
+      ['projector', 'Projector base'],
+      ['aberration', 'Chromatic aberration'],
+      ['scan', 'Scan on refocus'],
+      ['glitch', 'Random glitch'],
+      ['particles', 'Data packets'],
+      ['blink', 'Blink on events'],
+    ] },
+  { title: 'Performance',
+    sliders: [
+      ['idleFps', 'Idle FPS', 5, 60, 'fps', 1],
+    ],
+    toggles: [
+      ['idlePower', 'Idle power saving'],
+    ] },
+];
+
+// Settings that only affect the DOM overlays, applied outside the canvas.
+function applyDomSettings() {
+  const v = document.querySelector('.vignette');
+  if (v) v.style.opacity = Math.max(0, CONFIG.contrast / 100);
+}
+
+function settingChanged(opts) {
+  saveConfig();
+  if (opts && opts.rebuild) rebuildHero();
+  applyDomSettings();
+  // Any change is an event: re-raster and push through the idle throttle so
+  // the result is visible immediately instead of up to a frame later.
+  sceneDirty = true; lastRenderAt = 0;
+}
+
+const sliderEls = {}, toggleEls = {};
+function buildSettingsUI() {
+  const body = document.getElementById('settings-body');
+  body.innerHTML = '';
+  SETTING_GROUPS.forEach((g, gi) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'set-group' + (g.open ? '' : ' closed');
+    const head = document.createElement('div');
+    head.className = 'set-head';
+    const t = document.createElement('span'); t.textContent = g.title;
+    const ch = document.createElement('span'); ch.className = 'chev'; ch.textContent = '▼';
+    head.appendChild(t); head.appendChild(ch);
+    head.addEventListener('click', () => wrap.classList.toggle('closed'));
+    wrap.appendChild(head);
+    const inner = document.createElement('div');
+    inner.className = 'set-body';
+    wrap.appendChild(inner);
+
+    (g.sliders || []).forEach(function (spec) {
+      const key = spec[0], label = spec[1], min = spec[2], max = spec[3];
+      const unit = spec[4], step = spec[5] || 1, opts = spec[6];
+      const row = document.createElement('div');
+      row.className = 'slider-row';
+      const name = document.createElement('span');
+      name.textContent = label.toUpperCase();
+      const inp = document.createElement('input');
+      inp.type = 'range'; inp.min = min; inp.max = max; inp.step = step;
+      inp.value = CONFIG[key];
+      const out = document.createElement('output');
+      const paint = function () {
+        out.textContent = CONFIG[key] + unit;
+        // Flag anything moved off its default, so a mangled config is easy
+        // to spot without comparing every value by hand.
+        row.classList.toggle('changed', CONFIG[key] !== DEFAULT_CONFIG[key]);
+      };
+      inp.addEventListener('input', function () {
+        const raw = parseFloat(inp.value);
+        CONFIG[key] = step < 1 ? raw : Math.round(raw);
+        paint();
+        settingChanged(opts);
+      });
+      paint();
+      row.appendChild(name); row.appendChild(inp); row.appendChild(out);
+      inner.appendChild(row);
+      sliderEls[key] = { inp: inp, paint: paint };
+    });
+
+    (g.toggles || []).forEach(function (spec) {
+      const key = spec[0], label = spec[1];
+      const lab = document.createElement('label');
+      lab.className = 'mod-row';
+      const inp = document.createElement('input');
+      inp.type = 'checkbox';
+      inp.checked = !!CONFIG[key];
+      inp.addEventListener('change', function () {
+        CONFIG[key] = inp.checked;
+        settingChanged(null);
+        logEvent('> config: ' + key + ' ' + (inp.checked ? 'on' : 'off'), 0.5);
+      });
+      lab.appendChild(inp);
+      lab.appendChild(document.createTextNode(' ' + label));
+      inner.appendChild(lab);
+      toggleEls[key] = inp;
+    });
+
+    body.appendChild(wrap);
+  });
+}
+function refreshSettingsUI() {
+  Object.keys(sliderEls).forEach(function (k) {
+    sliderEls[k].inp.value = CONFIG[k];
+    sliderEls[k].paint();
+  });
+  Object.keys(toggleEls).forEach(function (k) { toggleEls[k].checked = !!CONFIG[k]; });
+}
+
+// Two-stage reset: a destructive action asks once. The button re-labels
+// itself rather than opening a dialog, which would be heavy for this.
+function armButton(btn, label, action) {
+  let armed = false, timer = 0;
+  const reset = function () {
+    armed = false; btn.classList.remove('armed'); btn.textContent = label; clearTimeout(timer);
+  };
+  btn.textContent = label;
+  btn.addEventListener('click', function () {
+    if (!armed) {
+      armed = true; btn.classList.add('armed'); btn.textContent = 'CONFIRM?';
+      timer = setTimeout(reset, 3000);
+      return;
+    }
+    reset();
+    action();
+  });
+}
+armButton(document.getElementById('reset-btn'), 'RESET ALL', function () {
+  // Model and palette are choices, not tuning, so a reset leaves them alone.
+  const keepModel = CONFIG.model, keepTheme = CONFIG.theme;
+  CONFIG = Object.assign({}, DEFAULT_CONFIG, { model: keepModel, theme: keepTheme });
+  saveConfig(); rebuildHero(); refreshSettingsUI(); applyDomSettings();
+  sceneDirty = true; lastRenderAt = 0;
+  logEvent('> config: reset to defaults', 0.8);
 });
-const sensSlider = document.getElementById('sensitivity-slider');
-const sensOut = document.getElementById('sensitivity-out');
-sensSlider.value = CONFIG.sensitivity; sensOut.textContent = CONFIG.sensitivity + '%';
-sensSlider.addEventListener('input', () => {
-  CONFIG.sensitivity = parseInt(sensSlider.value, 10);
-  sensOut.textContent = CONFIG.sensitivity + '%'; saveConfig();
-});
-const mouseToggle = document.getElementById('mouse-toggle');
-mouseToggle.checked = CONFIG.mouseReactive;
-mouseToggle.addEventListener('change', () => { CONFIG.mouseReactive = mouseToggle.checked; saveConfig(); });
-document.querySelectorAll('[data-fx]').forEach(inp => {
-  const key = inp.dataset.fx;
-  inp.checked = !!CONFIG[key];
-  inp.addEventListener('change', () => { CONFIG[key] = inp.checked; saveConfig(); });
+armButton(document.getElementById('reset-group'), 'RESET SLIDERS', function () {
+  SETTING_GROUPS.forEach(function (g) {
+    (g.sliders || []).forEach(function (spec) { CONFIG[spec[0]] = DEFAULT_CONFIG[spec[0]]; });
+  });
+  saveConfig(); rebuildHero(); refreshSettingsUI(); applyDomSettings();
+  sceneDirty = true; lastRenderAt = 0;
+  logEvent('> config: sliders reset', 0.7);
 });
 
 // ---------- Main loop ----------
-let t = 0, heroYaw = 0;
+// Two gates decide the cost of a frame:
+//   1. Is anything happening at all? If not, render at IDLE_FPS.
+//   2. Did anything the rasteriser cares about change? If not, blit the
+//      cached point cloud instead of projecting it again.
+// A genuinely idle wallpaper therefore costs a clear, one blit, and the
+// HUD text — which is the efficiency argument for building it this way.
+let t = 0, heroYaw = 0, globeYaw = 0.4, lastSceneSig = '';
+let lastHistAt = 0;
+function idleFps() { return Math.max(2, Math.min(60, CONFIG.idleFps)); }
+function sceneIsActive() {
+  return poseMoving || audioActive || ripple >= 0 || packets.length > 0
+    || glitchFrames > 0 || !!noiseBand || fxActive()
+    || AI.state !== 'IDLE' || AI.brightness > 0.002 || AI.pathway > 0.002;
+}
 function frame() {
+  requestAnimationFrame(frame);
+  // Covered by a fullscreen window, or the session is locked: draw nothing
+  // at all. This is the largest single saving available to a wallpaper,
+  // and it is only safe because nothing here animates on a timeline that
+  // would need catching up on resume.
+  if (document.hidden) { lastRenderAt = 0; return; }
+  const now = performance.now();
+  const since = now - lastRenderAt;
+  const active = sceneIsActive();
+  throttled = CONFIG.idlePower && !active;
+  // Idle: skip the frame entirely. rAF keeps running so an event is picked
+  // up within a frame, but nothing is drawn.
+  if (throttled && since < 1000 / idleFps()) return;
+
+  DT = Math.min(100, Math.max(1, now - (lastRenderAt || now - 16)));
+  NOW = now;
+  lastRenderAt = now;
   t += 1;
   trackFrame();
-  heroYaw = updateLookAt();
-  if (!audioActive) simulateSpectrum();
+
+  // --- sense ---
   analyseAudio();
+  updateState();
+  watchSystem();
+  updateBlink();
   updateRipple();
-  if (t % 15 === 0) {
+  updateNoiseBand();
+  updateSaccade();
+  // Hosts push timeline updates only occasionally (on seek, track change,
+  // or every few seconds), so the elapsed figure is extrapolated between
+  // them and corrected the moment a real update lands.
+  if (MEDIA.state === 'playing' && MEDIA.duration > 0) {
+    MEDIA.position = Math.min(MEDIA.duration, MEDIA.position + DT / 1000);
+  }
+  heroYaw = updateLookAt();
+  // The globe is the one element permitted a continuous rotation: it is an
+  // instrument in a corner panel, not the subject, and it renders to its
+  // own small buffer so it cannot dirty the cached hero or defeat the idle
+  // throttle. ~39s per revolution, with a kick on a network event.
+  globeYaw += ((CONFIG.globeSpin ? 0.16 : 0) + fx('panel-link') * 1.9) * DT / 1000;
+  if (globeYaw > 6.283185) globeYaw -= 6.283185;
+  if (now - lastHistAt > 250) {
+    lastHistAt = now;
     pushHist(fpsHist, SYS.fps, 60);
     pushHist(lagHist, SYS.loopLag, 60);
     pushHist(rmsHist, audioRMS, 60);
@@ -1248,22 +2643,40 @@ function frame() {
 
   const r0 = Math.min(W, H) * 0.44 * (1 + beatEnergy * 0.015);
 
-  beginPixelFrame();
-  drawStars();
-  if (CONFIG.particles) drawParticles();
-  drawHero(r0);
-  if (CONFIG.hud && CONFIG.globe && globePoints.length && W >= 1100 && H >= 620) {
-    const g = globeRect();
-    rasterCloud(globePoints, g.w * 0.30, g.x + g.w / 2, g.y + g.h / 2, t * 0.004, 0.22, { gain: 0.85 });
+  // --- point layer, cached when nothing that feeds it has changed ---
+  const hp = heroParams();
+  const showGlobe = CONFIG.hud && CONFIG.globe && globePoints.length && W >= 1100 && H >= 620;
+  // The globe is deliberately absent from this signature — it lives on its
+  // own buffer, so its rotation must not mark the subject dirty.
+  const sig = heroSig(hp, r0);
+  if (sig !== lastSceneSig) { sceneDirty = true; lastSceneSig = sig; }
+  if (sceneDirty) {
+    beginPixelFrame();
+    drawStars();
+    drawHero(r0, hp);
+    endPixelFrame();
+    sceneDirty = false;
   }
-  endPixelFrame();
+  const gRect = showGlobe ? globeRect() : null;
+  if (gRect) renderGlobe(gRect);
 
+  // --- composite, back to front ---
+  ctx.fillStyle = '#04060a';
+  ctx.fillRect(0, 0, W, H);
+  drawProjector(r0);          // light pool sits behind the subject
+  blitScene(shimmerGain());
   drawEyeGlow(r0);
+  drawCallouts(r0);
+  // Panel brightness applies to the instrument layer only — the globe is
+  // HUD furniture, the eyes and projector are the subject and stay put.
+  HUD_K = Math.max(0, CONFIG.hudBright / 100);
+  if (gRect) drawGlobeLayer(gRect);
   if (CONFIG.hud) drawHUD(r0);
+  HUD_K = 1;
+  if (CONFIG.particles) drawPackets();
+  drawNoiseBand();
   if (CONFIG.glitch) maybeGlitch();
   if (CONFIG.bloom) drawBloom();
-
-  requestAnimationFrame(frame);
 }
 
 // ---------- Boot ----------
@@ -1283,7 +2696,15 @@ function frame() {
     rebuildGlobe();
     renderModelRow();
     renderThemeRow();
+    buildSettingsUI();
+    applyDomSettings();
     loading.style.display = 'none';
+    NOW = performance.now();
+    logEvent('> link: volumetric channel open', 0.8);
+    logEvent('> subject: ' + modelCfg().id + ' · ' + heroPoints.length.toLocaleString() + ' pts', 0.7);
+    if (!window.wallpaperRegisterAudioListener) logEvent('> audio: no host stream', 0.5);
+    // One sweep on arrival, then the scene settles and holds.
+    fire('sweep', 2000); fire('refocus', 1400);
     requestAnimationFrame(frame);
   };
   s.onerror = () => { loading.textContent = 'MODEL DATA MISSING — holo-models.js NOT FOUND'; };
