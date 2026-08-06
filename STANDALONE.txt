@@ -38,6 +38,20 @@ With no audio at all it stays deliberately still: meters read zero and the
 panel says NO AUDIO LINK rather than inventing movement.
 
 
+AMBIENT SOUND
+-------------
+Settings panel -> Audio -> "Ambient sound bed", with a volume slider.
+Off by default.
+
+It is synthesised in the page (a few detuned low oscillators), not a sound
+file, so there is nothing extra to download and no loop to notice.
+
+One thing worth knowing: the bed plays out of the same speakers the
+visualiser listens to, so it would otherwise hear its own hum and sit
+permanently "LIVE". The activity threshold lifts in step with the ambient
+volume to stop that. Real audio still registers normally.
+
+
 FULL SCREEN
 -----------
 Press F11 in most browsers. For a permanently-on display, use your browser's

@@ -124,8 +124,11 @@
      when this page is opened directly in a browser. */
   #mic-btn {
     display: none;
-    position: absolute; z-index: 20; top: 14px; left: 50%;
-    transform: translateX(calc(-50% + 30px));
+    /* Anchored by its LEFT edge just clear of the gear. The old rule centred
+       it 30px right of centre, which for a ~110px pill still put its left
+       half on top of the 28px gear. */
+    position: absolute; z-index: 20; top: 14px; left: calc(50% + 24px);
+    transform: none;
     padding: 5px 12px; border-radius: 14px;
     border: 1px solid rgba(var(--accent-rgb),0.45); background: rgba(6,10,18,0.62);
     color: rgb(var(--accent-rgb)); font: 9.5px 'Share Tech Mono', monospace;
@@ -441,6 +444,10 @@ const DEFAULT_CONFIG = {
   // looking at, so nothing else should be able to sit over it.
   subjectFront: true,
   subjectOpacity: 100,   // % — full strength unless deliberately dialled back
+  // Ambient bed. Off by default: a wallpaper that makes noise unasked is a
+  // bad neighbour, and it needs a click to start under browser autoplay rules.
+  ambient: false,
+  ambientVolume: 25,     // %
   globeModel: 'earth',   // which baked model rides the small orbital instrument
   globeSpinSpeed: 100,   // % of the base ~39s revolution
   modelSpin: false,
@@ -448,7 +455,11 @@ const DEFAULT_CONFIG = {
   paperInk: 'graphite',  // pigment used for everything while on paper
   paperTexture: 'plain', // paper stock, chosen independently of the ink
   inkStrength: 100,      // % — how hard the pencil presses on the subject
-  bgParticles: 100,      // % of the base 130 background stars
+  // A direct count, not a percentage. It used to be a % of a fixed 130,
+  // which capped the field at 390 no matter what you did with the slider.
+  // An old saved value of 100 lands on 100 particles, which is close enough
+  // to the old default that nothing jumps on upgrade.
+  bgParticles: 130,      // background particles, 0..10130
   particleStyle: 'static', // 'static' | 'drift' | 'rise' | 'fall'
   clockScale: 130,       // % size of the header clock/calendar
   audioRing: true,       // radial spectrum ring around the subject
@@ -498,7 +509,7 @@ const SMOOTH_KEYS = [
   'modelX', 'modelY', 'projectorX', 'projectorY', 'projectorZ', 'hueShift',
   'reticleX', 'reticleY', 'reticleScale', 'reticleSpin', 'reticleDetail',
   'modelSpinSpeed', 'clockX', 'clockY', 'hudLeftX', 'hudLeftY', 'subjectOpacity',
-  'hudRightX', 'hudRightY', 'hudColW', 'hudTextTint', 'globeSpinSpeed',
+  'hudRightX', 'hudRightY', 'hudColW', 'hudTextTint', 'globeSpinSpeed', 'ambientVolume',
 ];
 const SMOOTH = {};
 function initSmooth() { SMOOTH_KEYS.forEach((k) => { SMOOTH[k] = CONFIG[k]; }); }
@@ -967,6 +978,54 @@ if (window.wallpaperRegisterAudioListener) {
     }
   });
 }
+// ---------- Ambient bed ----------
+// Synthesised rather than shipped as a file: a handful of detuned low
+// oscillators through a lowpass, which costs nothing to distribute and lets
+// the level follow the attention state instead of being a fixed loop. There
+// is deliberately no LFO on pitch or amplitude — an audible cycle in a
+// wallpaper's background hum is exactly the kind of loop the rest of this
+// build exists to avoid. It drifts only when the HUD itself reacts.
+let ambCtx = null, ambGain = null, ambStarted = false;
+function ambientStart() {
+  if (ambStarted) return true;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return false;
+  try {
+    ambCtx = ambCtx || new AC();
+    const master = ambCtx.createGain();
+    master.gain.value = 0;              // faded in by ambientUpdate, never popped on
+    master.connect(ambCtx.destination);
+    const filt = ambCtx.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.value = 340;
+    filt.Q.value = 0.7;
+    filt.connect(master);
+    // A root plus a fifth and an octave, each detuned a few cents so they
+    // beat against each other slowly instead of sounding like a test tone.
+    [[55, 'sine', 0.55], [82.5, 'triangle', 0.16], [110, 'sine', 0.22]].forEach(([f, type, lvl], i) => {
+      const o = ambCtx.createOscillator();
+      o.type = type;
+      o.frequency.value = f * (1 + (i - 1) * 0.0035);
+      const g = ambCtx.createGain();
+      g.gain.value = lvl;
+      o.connect(g); g.connect(filt);
+      o.start();
+    });
+    ambGain = master;
+    ambStarted = true;
+    logEvent('> ambient: bed online', 0.7);
+    return true;
+  } catch (e) { return false; }
+}
+function ambientUpdate() {
+  if (!ambStarted) return;
+  if (ambCtx.state === 'suspended') ambCtx.resume();
+  // Kept low on purpose: this sits under everything else on the machine.
+  const target = CONFIG.ambient
+    ? (SMOOTH.ambientVolume / 100) * 0.085 * (1 + AI.brightness * 0.45)
+    : 0;
+  ambGain.gain.setTargetAtTime(target, ambCtx.currentTime, 0.35);
+}
 // Microphone path, for running this outside Wallpaper Engine. A browser
 // cannot tap the system output the way the host can, so the mic is the only
 // audio a standalone page can legitimately get, and it needs a click first
@@ -1126,7 +1185,14 @@ function analyseAudio() {
   // Signal gate. audioActive means "there is sound right now", not "a
   // listener was once registered" — a silent stream must leave the scene
   // as still as no stream at all.
-  const hot = audioRMS > 0.012 || audioPeak > 0.05;
+  // Ambient compensation. The drone this page emits goes out of the same
+  // speakers the host analyser is listening to, so with the gate left where
+  // it is the wallpaper hears itself and sits permanently "LIVE" — mouth
+  // open, meters up, on its own hum. Lifting the threshold in proportion to
+  // the ambient volume lets the drone pass under the gate while genuinely
+  // louder audio still trips it.
+  const ambFloor = (CONFIG.ambient && ambStarted) ? (SMOOTH.ambientVolume / 100) * 0.045 : 0;
+  const hot = audioRMS > (0.012 + ambFloor) || audioPeak > (0.05 + ambFloor * 2);
   if (hot) AI.lastAudioAt = now;
   audioActive = now - AI.lastAudioAt < 700;
 }
@@ -1768,7 +1834,7 @@ function drawHero(r0, p) {
 // all the life it needs.
 let stars = [];
 function rebuildStars() {
-  const n = Math.round(130 * ((CONFIG.bgParticles ?? 100) / 100));
+  const n = Math.max(0, Math.min(10130, Math.round(CONFIG.bgParticles ?? 130)));
   stars = Array.from({ length: n }, () => {
     const ang = Math.random() * Math.PI * 2;
     const sp = 0.008 + Math.random() * 0.02;
@@ -3297,7 +3363,7 @@ const SETTING_GROUPS = [
     toggles: [] },
   { title: 'Background',
     sliders: [
-      ['bgParticles', 'Background particles', 0, 300, '%', 1, { rebuildStars: true }],
+      ['bgParticles', 'Background particles', 0, 10130, '', 10, { rebuildStars: true }],
     ],
     toggles: [] },
   { title: 'Mouse & Look', open: true,
@@ -3320,9 +3386,11 @@ const SETTING_GROUPS = [
       ['sensitivity', 'Audio gain', 50, 200, '%', 1],
       ['jawAmount', 'Mouth', 0, 200, '%', 1],
       ['audioRingAmount', 'Spectrum ring size', 0, 200, '%', 1],
+      ['ambientVolume', 'Ambient volume', 0, 100, '%', 1],
     ],
     toggles: [
       ['audioRing', 'Spectrum ring'],
+      ['ambient', 'Ambient sound bed'],
     ] },
   { title: 'Panels & HUD',
     sliders: [
@@ -3485,6 +3553,13 @@ function buildSettingsUI() {
       inp.checked = !!CONFIG[key];
       inp.addEventListener('change', function () {
         CONFIG[key] = inp.checked;
+        // Audio has to be created inside the click itself: browsers refuse to
+        // start a context without a user gesture, and a later call from the
+        // render loop would be too late to count as one.
+        if (key === 'ambient' && inp.checked && !ambientStart()) {
+          CONFIG.ambient = false; inp.checked = false;
+          logEvent('> ambient: audio unavailable', 0.5);
+        }
         settingChanged(null);
         logEvent('> config: ' + key + ' ' + (inp.checked ? 'on' : 'off'), 0.5);
       });
@@ -3583,6 +3658,7 @@ function frame() {
 
   // --- sense ---
   analyseAudio();
+  ambientUpdate();
   updateState();
   watchSystem();
   updateBlink();
@@ -3735,6 +3811,8 @@ function handleWEProperties(properties) {
   if (P.subjectopacity !== undefined) CONFIG.subjectOpacity = Number(val(P.subjectopacity));
   if (P.globemodel && val(P.globemodel) !== CONFIG.globeModel) { CONFIG.globeModel = val(P.globemodel); globeChanged = true; }
   if (P.globespinspeed !== undefined) CONFIG.globeSpinSpeed = Number(val(P.globespinspeed));
+  if (P.ambient !== undefined) { CONFIG.ambient = !!val(P.ambient); if (CONFIG.ambient) ambientStart(); }
+  if (P.ambientvolume !== undefined) CONFIG.ambientVolume = Number(val(P.ambientvolume));
   if (P.density !== undefined && Number(val(P.density)) !== CONFIG.density) {
     CONFIG.density = Number(val(P.density));
     modelChanged = true;   // density is baked into the point list, so re-run the build
