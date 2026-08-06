@@ -738,6 +738,33 @@
 				"min": 0,
 				"max": 24,
 				"step": 1
+			},
+			"assistant": {
+				"order": 62,
+				"text": "Voice assistant (probe)",
+				"type": "bool",
+				"value": false
+			},
+			"assistantspeak": {
+				"order": 63,
+				"text": "Speak replies",
+				"type": "bool",
+				"value": true
+			},
+			"assistantvolume": {
+				"order": 64,
+				"text": "Assistant volume (%)",
+				"type": "slider",
+				"value": 90,
+				"min": 0,
+				"max": 100,
+				"step": 5
+			},
+			"wakeword": {
+				"order": 65,
+				"text": "Wake word",
+				"type": "textinput",
+				"value": "nexus"
 			}
 		},
 		"supportsaudioprocessing": true

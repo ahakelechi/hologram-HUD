@@ -52,6 +52,63 @@ permanently "LIVE". The activity threshold lifts in step with the ambient
 volume to stop that. Real audio still registers normally.
 
 
+VOICE ASSISTANT
+---------------
+Settings panel -> Audio -> "Voice assistant". Off by default, because it
+opens the microphone and talks back.
+
+Say the wake word, then a question:  "Nexus, what time is it"
+
+It answers from what the HUD already measures: time, date, processor load,
+memory, battery, network, uptime, frame rate, and the current subject. It
+also takes commands - "Nexus, switch to skull", "Nexus, paper background",
+"Nexus, start spinning", "Nexus, be quiet".
+
+The wake word, the speaking voice and the volume are all in the Voice block
+of the settings panel. "TEST VOICE" checks speech output on its own, without
+needing the microphone.
+
+Whether it can HEAR you depends on the browser. Speech recognition needs a
+speech service that plain Chromium builds have and some embedded ones do not,
+so the status line in the Voice block reports what actually happened:
+
+  READY / LISTENING  - working
+  NO API             - this browser has no speech recognition at all
+  DENIED             - microphone permission refused
+  NO SERVICE         - the browser has the API but no speech backend
+  ERROR (code)       - something else; the code is shown
+
+The same status appears in the bottom ticker as VOICE, so it can be read
+inside Wallpaper Engine where there is no console.
+
+Speaking back uses the operating system's voices and does not need any of
+that, so "TEST VOICE" can work even when listening does not.
+
+
+BACKGROUND PICTURE
+------------------
+Settings -> Backdrop -> Picture, then "CHOOSE IMAGE".
+
+The image is downscaled and re-encoded before being saved, so a large photo
+will not overflow the browser storage quota. It is kept separately from the
+rest of your settings — if it ever fails to save, you are told, and only the
+picture is affected.
+
+Fill / Fit / Tile control how it is placed. "Picture dim" and "Picture blur"
+exist because a HUD has to stay readable over an arbitrary photo, and very
+few photos are quiet enough on their own. Start around 45% dim.
+
+
+PAPER LEGIBILITY
+----------------
+If the paper theme looks too faint, raise Optics -> "Paper contrast".
+
+Every brightness value in this wallpaper was chosen for glowing light on a
+black screen. The same value drawn as dark ink on a cream sheet is far weaker
+than it looks on black, so paper scales them all up by this one control.
+Default 190%.
+
+
 FULL SCREEN
 -----------
 Press F11 in most browsers. For a permanently-on display, use your browser's

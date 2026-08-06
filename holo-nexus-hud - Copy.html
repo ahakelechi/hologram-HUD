@@ -222,6 +222,8 @@
   .theme-row { display: flex; gap: 6px; flex-wrap: wrap; }
   .color-row { display: flex; gap: 10px; align-items: center; }
   .color-row label { font-size: 8.5px; letter-spacing: 0.6px; color: rgba(200,235,255,0.68); display: flex; align-items: center; gap: 5px; }
+  .voice-status { font-size: 8.5px; letter-spacing: 1px; padding: 4px 6px; border: 1px solid rgba(var(--accent-rgb),0.3); color: rgb(var(--accent-rgb)); opacity: 0.85; }
+  .color-row input[type=text], .color-row select { background: rgba(var(--accent-rgb),0.06); border: 1px solid rgba(var(--accent-rgb),0.3); color: var(--text); font: 9px "Share Tech Mono", monospace; padding: 3px 4px; max-width: 150px; }
   .file-btn { position: relative; overflow: hidden; text-align: center; }
   .file-btn input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
   .color-row input[type=color] { width: 34px; height: 22px; padding: 0; border: 1px solid rgba(var(--accent-rgb),0.35); background: transparent; cursor: pointer; }
@@ -269,6 +271,17 @@
     </div>
     <h4 style="margin-top:10px;">Palettes</h4>
     <div class="model-row" id="palette-row"></div>
+  </div>
+  <h4 style="margin-top:12px;">Voice</h4>
+  <div id="voice-block">
+    <div class="voice-status" id="voice-status">VOICE: OFF</div>
+    <div class="color-row" style="margin-top:6px;">
+      <label>WAKE <input type="text" id="wake-word" spellcheck="false"></label>
+    </div>
+    <div class="color-row" style="margin-top:6px;">
+      <label>VOICE <select id="voice-pick"></select></label>
+    </div>
+    <button class="btn" id="voice-test" style="margin-top:6px;">TEST VOICE</button>
   </div>
   <div id="image-only" style="display:none;">
     <h4 style="margin-top:12px;">Picture</h4>
@@ -528,6 +541,13 @@ const DEFAULT_CONFIG = {
   bgImageFit: 'cover',   // 'cover' | 'contain' | 'tile'
   bgImageDim: 45,        // % — how far the picture is dimmed toward the base
   bgImageBlur: 0,        // px
+  // Voice assistant. Off by default: it opens the microphone and talks back,
+  // neither of which should happen to a wallpaper unasked.
+  assistant: false,
+  assistantSpeak: true,
+  assistantVolume: 90,
+  assistantVoice: '',     // empty = whatever the OS picks
+  wakeWord: 'nexus',
   ambient: false,
   ambientVolume: 25,     // %
   globeModel: 'earth',   // which baked model rides the small orbital instrument
@@ -1107,6 +1127,213 @@ function ambientUpdate() {
     ? (SMOOTH.ambientVolume / 100) * 0.085 * (1 + AI.brightness * 0.45)
     : 0;
   ambGain.gain.setTargetAtTime(target, ambCtx.currentTime, 0.35);
+}
+// ---------- Voice assistant ----------
+// Speech recognition is the one capability here that cannot be feature-probed
+// honestly from outside the host: Chromium exposes SpeechRecognition whether
+// or not the build carries the API keys it needs to reach the speech backend,
+// so `typeof` tells you nothing. Wallpaper Engine embeds CEF, which usually
+// ships without those keys. The status below therefore reports what actually
+// happened — started, denied, failed and why — rather than what was declared,
+// and it is surfaced in the HUD so it can be read inside Wallpaper Engine
+// where there is no console to attach to.
+const VOICE = {
+  declared: false,   // the constructor exists
+  status: 'OFF',     // what the HUD shows
+  detail: '',        // last error code, if any
+  heard: '',         // last transcript
+  reply: '',         // last thing said back
+  listening: false,
+  speaking: false,
+  energy: 0,         // drives the jaw while talking
+  starts: 0, results: 0, errors: 0,
+  since: 0,
+};
+function voiceDeclared() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
+VOICE.declared = voiceDeclared();
+
+let recog = null, recogWantOn = false, recogRetryAt = 0;
+function voiceSet(status, detail) {
+  if (VOICE.status !== status) VOICE.since = NOW;
+  VOICE.status = status;
+  VOICE.detail = detail || '';
+  if (typeof updateVoiceStatusEl === 'function') updateVoiceStatusEl();
+  fire('panel-audio', 900);
+}
+function startAssistant() {
+  if (!CONFIG.assistant) return false;
+  if (!VOICE.declared) { voiceSet('NO API', 'SpeechRecognition missing'); logEvent('> voice: not supported by this browser', 0.6); return false; }
+  if (recog) return true;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  try {
+    recog = new SR();
+  } catch (e) {
+    voiceSet('FAILED', String(e && e.message || e));
+    logEvent('> voice: constructor failed', 0.6);
+    return false;
+  }
+  recog.continuous = true;
+  recog.interimResults = true;
+  recog.lang = navigator.language || 'en-US';
+  recog.onstart = () => {
+    VOICE.starts++; VOICE.listening = true;
+    voiceSet('LISTENING');
+    logEvent('> voice: microphone open', 0.85);
+  };
+  recog.onresult = (ev) => {
+    VOICE.results++;
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const r = ev.results[i];
+      const text = (r[0] && r[0].transcript || '').trim();
+      if (!text) continue;
+      VOICE.heard = text;
+      if (r.isFinal) handleUtterance(text);
+      else if (AI.state === 'IDLE') setState('ATTENTIVE');
+    }
+  };
+  recog.onerror = (ev) => {
+    VOICE.errors++;
+    const code = ev && ev.error || 'unknown';
+    // 'not-allowed' and 'service-not-allowed' are the two that mean "this host
+    // will never work" — permission refused, or no speech backend available,
+    // which is the expected Wallpaper Engine outcome.
+    if (code === 'not-allowed') { voiceSet('DENIED', code); logEvent('> voice: microphone permission denied', 0.6); recogWantOn = false; }
+    else if (code === 'service-not-allowed') { voiceSet('NO SERVICE', code); logEvent('> voice: no speech service on this host', 0.6); recogWantOn = false; }
+    else if (code === 'no-speech' || code === 'aborted') { voiceSet('LISTENING', code); }
+    else { voiceSet('ERROR', code); logEvent('> voice: error ' + code, 0.6); }
+  };
+  recog.onend = () => {
+    VOICE.listening = false;
+    // Continuous mode still stops on its own after silence; restart unless we
+    // deliberately turned it off or the host told us it will never work.
+    if (recogWantOn) recogRetryAt = NOW + 400;
+    else voiceSet(VOICE.status === 'LISTENING' ? 'READY' : VOICE.status);
+  };
+  recogWantOn = true;
+  try { recog.start(); voiceSet('STARTING'); }
+  catch (e) { voiceSet('FAILED', String(e && e.message || e)); return false; }
+  return true;
+}
+function stopAssistant() {
+  recogWantOn = false;
+  if (recog) { try { recog.stop(); } catch (e) {} recog = null; }
+  VOICE.listening = false;
+  voiceSet('OFF');
+}
+// Recognition drops out on its own after a silence; this is the only place it
+// is restarted, so a host that refuses outright cannot spin here forever.
+function voiceTick() {
+  if (recogWantOn && recog && !VOICE.listening && recogRetryAt && NOW > recogRetryAt) {
+    recogRetryAt = 0;
+    try { recog.start(); } catch (e) { /* already starting */ }
+  }
+  // Speaking envelope. The jaw cannot follow the synthesiser's real output —
+  // speechSynthesis gives no audio node to analyse — so it is driven by an
+  // envelope that pulses per word boundary and decays between, which reads as
+  // speech rather than as a mouth flapping at a constant rate.
+  if (VOICE.speaking) {
+    const n = fbm(NOW * 0.011) * 0.55 + fbm(NOW * 0.027 + 9) * 0.45;
+    VOICE.energy += ((0.35 + n * 0.65) - VOICE.energy) * Math.min(1, DT / 90);
+  } else {
+    VOICE.energy += (0 - VOICE.energy) * Math.min(1, DT / 120);
+  }
+}
+// ---- the brain: rules over what the HUD already measures ----
+function fmtClockWords(d) {
+  return d.toLocaleTimeString(navigator.language || 'en-US', { hour: 'numeric', minute: '2-digit' });
+}
+function assistantAnswer(q) {
+  const s = q.toLowerCase();
+  const has = (...w) => w.some((x) => s.indexOf(x) >= 0);
+  // --- commands that change the wallpaper ---
+  for (const key of MODEL_KEYS) {
+    const label = (MODEL_CFG[key].label || '').toLowerCase().split(' ')[0];
+    if (has('switch to ' + key, 'show ' + key, 'show the ' + key, 'switch to ' + label, 'show ' + label)) {
+      CONFIG.model = key; saveConfig(); rebuildHero(); renderModelRow();
+      // Labels carry a category word ("VAMPIRE SUBJECT", "TITAN CLASS") that
+      // reads fine on a panel but is redundant when spoken after "Subject".
+      const spoken = MODEL_CFG[key].label.toLowerCase().replace(/\s+(subject|unit|class|figure)$/, '');
+      return 'Subject set to ' + spoken + '.';
+    }
+  }
+  for (const key of Object.keys(BG_STYLES)) {
+    if (has(key + ' background', 'background ' + key, key + ' backdrop')) {
+      CONFIG.bgStyle = key; saveConfig(); applyDomSettings(); renderBgRow(); sceneDirty = true;
+      return 'Backdrop set to ' + BG_STYLES[key].name.toLowerCase() + '.';
+    }
+  }
+  if (has('start spinning', 'spin the', 'start spin', 'rotate')) { CONFIG.modelSpin = true; saveConfig(); refreshSettingsUI(); return 'Turntable running.'; }
+  if (has('stop spinning', 'stop spin', 'stop rotating')) { CONFIG.modelSpin = false; saveConfig(); refreshSettingsUI(); return 'Turntable stopped.'; }
+  if (has('be quiet', 'stop talking', 'silence')) { CONFIG.assistantSpeak = false; saveConfig(); refreshSettingsUI(); return ''; }
+  // --- questions answered from live measurements ---
+  const now = new Date();
+  if (has('time')) return 'It is ' + fmtClockWords(now) + '.';
+  if (has('date', 'what day')) return 'It is ' + now.toLocaleDateString(navigator.language || 'en-US', { weekday: 'long', month: 'long', day: 'numeric' }) + '.';
+  if (has('cpu', 'processor', 'load', 'busy')) {
+    return 'Processor load is around ' + Math.round(SYS.loadIdx * 100) + ' percent across ' + (SYS.cores || 'unknown') + ' threads.';
+  }
+  if (has('memory', 'ram', 'heap')) {
+    return SYS.heapUsed ? 'Using ' + fmtBytes(SYS.heapUsed) + ' of heap' + (SYS.deviceMem ? ', on a machine with at least ' + SYS.deviceMem + ' gigabytes.' : '.')
+                        : 'Memory reporting is not available here.';
+  }
+  if (has('battery', 'power', 'charge')) {
+    const b = SYS.battery;
+    if (!b || b.level == null) return 'No battery is reported on this machine.';
+    return 'Battery is at ' + Math.round(b.level * 100) + ' percent' + (b.charging ? ' and charging.' : '.');
+  }
+  if (has('network', 'internet', 'connection', 'online', 'wifi')) {
+    return SYS.online ? 'The link is up' + (SYS.netDown ? ', about ' + SYS.netDown.toFixed(1) + ' megabits down.' : '.') : 'The link is down.';
+  }
+  if (has('playing', 'song', 'track', 'music')) {
+    if (mediaHasTrack()) return 'Now playing ' + MEDIA.title + (MEDIA.artist ? ' by ' + MEDIA.artist : '') + '.';
+    return MEDIA.available ? 'Nothing is playing right now.' : 'I have no media bridge here, so I cannot see what is playing.';
+  }
+  if (has('frame rate', 'fps', 'performance', 'how fast')) return 'Rendering at ' + (SYS.fps || 0) + ' frames per second.';
+  if (has('uptime', 'how long')) return 'Running for ' + fmtDur((Date.now() - SYS.bootAt) / 1000) + '.';
+  if (has('subject', 'who is this', 'what model', 'what is this')) {
+    return 'Current subject is ' + modelCfg().label.toLowerCase() + ', ' + heroPoints.length.toLocaleString() + ' points.';
+  }
+  if (has('who are you', 'your name', 'what are you')) return 'I am Nexus, a volumetric interface. Ask me about the time, this machine, or what is playing.';
+  if (has('hello', 'hi ', 'hey', 'good morning', 'good evening')) return 'Standing by.';
+  if (has('help', 'what can you do')) return 'Ask about the time, date, processor, memory, battery, network, or what is playing. I can also switch subject and backdrop.';
+  return '';
+}
+function handleUtterance(text) {
+  const wake = (CONFIG.wakeWord || 'nexus').toLowerCase().trim();
+  const low = text.toLowerCase();
+  const at = wake ? low.indexOf(wake) : 0;
+  if (wake && at < 0) return;                 // not addressed to us
+  const q = wake ? text.slice(at + wake.length).replace(/^[\s,.:!?-]+/, '') : text;
+  if (!q) { setState('LISTENING'); fire('listen-in', 700); return; }
+  VOICE.heard = q;
+  logEvent('> heard: ' + ellipsize(q, 34), 0.9);
+  setState('LISTENING');
+  const reply = assistantAnswer(q);
+  if (!reply) { logEvent('> voice: no answer for that', 0.5); setState('ATTENTIVE'); return; }
+  VOICE.reply = reply;
+  logEvent('> reply: ' + ellipsize(reply, 34), 0.85);
+  setState('RESPONDING');
+  fire('respond', 1400); fire('notify', 700);
+  spawnPackets('hero', 6);
+  speak(reply);
+}
+function speak(text) {
+  if (!CONFIG.assistantSpeak || !window.speechSynthesis) { setTimeout(() => setState('IDLE'), 900); return; }
+  try { window.speechSynthesis.cancel(); } catch (e) {}
+  const u = new SpeechSynthesisUtterance(text);
+  const voices = window.speechSynthesis.getVoices() || [];
+  if (CONFIG.assistantVoice) {
+    const v = voices.find((x) => x.name === CONFIG.assistantVoice);
+    if (v) u.voice = v;
+  }
+  u.rate = 1.0; u.pitch = 0.9;
+  u.volume = Math.max(0, Math.min(1, (CONFIG.assistantVolume ?? 90) / 100));
+  u.onstart = () => { VOICE.speaking = true; };
+  u.onboundary = () => { VOICE.energy = Math.min(1, VOICE.energy + 0.35); };
+  u.onend = () => { VOICE.speaking = false; setState('IDLE'); };
+  u.onerror = () => { VOICE.speaking = false; setState('IDLE'); };
+  try { window.speechSynthesis.speak(u); }
+  catch (e) { VOICE.speaking = false; setState('IDLE'); }
 }
 // Microphone path, for running this outside Wallpaper Engine. A browser
 // cannot tap the system output the way the host can, so the mic is the only
@@ -1882,7 +2109,12 @@ function heroParams() {
   // Onset (how loud the audio needs to be) is sensitivity's job; the
   // opening angle itself is jawAmount's — decoupled so a low jawAmount
   // still triggers on quiet audio, just barely opens.
-  const mouthOpen = audioActive ? Math.max(0, Math.min(1, bassEnergy * 1.7 * sensitivity)) : 0;
+  // While the assistant is talking its own envelope drives the jaw. It has to
+  // win over the analyser, because in Wallpaper Engine the host hears the
+  // synthesiser through the speakers and would otherwise fight it.
+  const mouthOpen = VOICE.speaking
+    ? Math.max(0, Math.min(1, VOICE.energy))
+    : (audioActive ? Math.max(0, Math.min(1, bassEnergy * 1.7 * sensitivity)) : 0);
   return {
     gain: (0.88 + beatEnergy * 0.3 + AI.brightness * 0.20) * (SMOOTH.subjectBright / 100),
     // The key light itself lifts when the hologram responds, so "the face
@@ -2564,6 +2796,7 @@ function drawTicker() {
   ctx.textAlign = 'left';
   const fields = [
     ['SUBJ', modelCfg().id],
+    ['VOICE', VOICE.status + (VOICE.detail ? ':' + VOICE.detail : '')],
     ['RES', W + 'x' + H + '@' + (window.devicePixelRatio || 1).toFixed(2) + 'x'],
     ['PTS', heroPoints.length.toLocaleString()],
     ['FPS', (SYS.fps || '--') + '/' + SYS.frameMs.toFixed(1) + 'MS'],
@@ -3470,8 +3703,53 @@ function renderPaletteRow() {
     row.appendChild(el);
   });
 }
+// The voice list arrives asynchronously in most browsers, so it is populated
+// both now and on the voiceschanged event.
+let voiceUIBound = false;
+function fillVoiceList() {
+  const sel = document.getElementById('voice-pick');
+  if (!sel || !window.speechSynthesis) return;
+  const voices = window.speechSynthesis.getVoices() || [];
+  if (!voices.length) return;
+  sel.innerHTML = '';
+  const auto = document.createElement('option');
+  auto.value = ''; auto.textContent = 'Automatic';
+  sel.appendChild(auto);
+  voices.forEach((v) => {
+    const o = document.createElement('option');
+    o.value = v.name; o.textContent = v.name.slice(0, 28);
+    sel.appendChild(o);
+  });
+  sel.value = CONFIG.assistantVoice || '';
+}
+function updateVoiceStatusEl() {
+  const el = document.getElementById('voice-status');
+  if (!el) return;
+  let t = 'VOICE: ' + VOICE.status + (VOICE.detail ? ' (' + VOICE.detail + ')' : '');
+  if (VOICE.heard) t += '  ·  HEARD: ' + ellipsize(VOICE.heard, 24);
+  el.textContent = t;
+}
+function bindVoiceUI() {
+  if (voiceUIBound) return;
+  const wake = document.getElementById('wake-word');
+  if (wake) {
+    wake.value = CONFIG.wakeWord || '';
+    wake.addEventListener('input', () => { CONFIG.wakeWord = wake.value.trim(); saveConfig(); });
+  }
+  const sel = document.getElementById('voice-pick');
+  if (sel) sel.addEventListener('change', () => { CONFIG.assistantVoice = sel.value; saveConfig(); });
+  const test = document.getElementById('voice-test');
+  if (test) test.addEventListener('click', () => {
+    setState('RESPONDING'); fire('respond', 1200);
+    speak('Nexus online. Voice output is working.');
+  });
+  fillVoiceList();
+  if (window.speechSynthesis) window.speechSynthesis.onvoiceschanged = fillVoiceList;
+  voiceUIBound = true;
+}
 function renderChromeRows() {
   bindColorInputs();
+  bindVoiceUI();
   bindBgImageInput();
   renderPickRow('bg-fit-row', BG_FITS, 'bgImageFit');
   renderPaletteRow();
@@ -3626,10 +3904,13 @@ const SETTING_GROUPS = [
       ['jawAmount', 'Mouth', 0, 200, '%', 1],
       ['audioRingAmount', 'Spectrum ring size', 0, 200, '%', 1],
       ['ambientVolume', 'Ambient volume', 0, 100, '%', 1],
+      ['assistantVolume', 'Assistant volume', 0, 100, '%', 5],
     ],
     toggles: [
       ['audioRing', 'Spectrum ring'],
       ['ambient', 'Ambient sound bed'],
+      ['assistant', 'Voice assistant'],
+      ['assistantSpeak', 'Speak replies'],
     ] },
   { title: 'Panels & HUD',
     sliders: [
@@ -3819,6 +4100,11 @@ function buildSettingsUI() {
           CONFIG.ambient = false; inp.checked = false;
           logEvent('> ambient: audio unavailable', 0.5);
         }
+        // Same gesture rule as the audio context: the microphone prompt only
+        // appears if the request happens inside the click.
+        if (key === 'assistant') {
+          if (inp.checked) startAssistant(); else stopAssistant();
+        }
         settingChanged(null);
         logEvent('> config: ' + key + ' ' + (inp.checked ? 'on' : 'off'), 0.5);
       });
@@ -3893,7 +4179,7 @@ function sceneIsActive() {
     // definition; throttled to the idle frame rate it would visibly step.
     || (CONFIG.reticleSpin > 0) || CONFIG.modelSpin
     // a resolving readout is motion too, and would otherwise crawl at idle fps
-    || rollActive();
+    || rollActive() || VOICE.speaking || VOICE.listening;
 }
 function frame() {
   requestAnimationFrame(frame);
@@ -3920,6 +4206,7 @@ function frame() {
   // --- sense ---
   analyseAudio();
   ambientUpdate();
+  voiceTick();
   updateState();
   watchSystem();
   updateBlink();
@@ -4083,6 +4370,10 @@ function handleWEProperties(properties) {
   if (P.bgimagefit && val(P.bgimagefit)) CONFIG.bgImageFit = val(P.bgimagefit);
   if (P.bgimagedim !== undefined) CONFIG.bgImageDim = Number(val(P.bgimagedim));
   if (P.bgimageblur !== undefined) CONFIG.bgImageBlur = Number(val(P.bgimageblur));
+  if (P.assistant !== undefined) { const on = !!val(P.assistant); if (on !== CONFIG.assistant) { CONFIG.assistant = on; if (on) startAssistant(); else stopAssistant(); } }
+  if (P.assistantspeak !== undefined) CONFIG.assistantSpeak = !!val(P.assistantspeak);
+  if (P.assistantvolume !== undefined) CONFIG.assistantVolume = Number(val(P.assistantvolume));
+  if (P.wakeword && typeof val(P.wakeword) === 'string') CONFIG.wakeWord = val(P.wakeword).trim();
   if (P.density !== undefined && Number(val(P.density)) !== CONFIG.density) {
     CONFIG.density = Number(val(P.density));
     modelChanged = true;   // density is baked into the point list, so re-run the build
@@ -4126,6 +4417,16 @@ window.wallpaperPropertyListener = { applyUserProperties: handleWEProperties };
     renderChromeRows();
     buildSettingsUI();
     applyDomSettings();
+    if (CONFIG.assistant) {
+      // No gesture is available inside Wallpaper Engine, so this is attempted
+      // directly; whether it succeeds is exactly what the probe reports.
+      startAssistant();
+    } else if (VOICE.declared) {
+      voiceSet('READY');
+    } else {
+      voiceSet('NO API');
+    }
+    logEvent('> voice: api ' + (VOICE.declared ? 'present' : 'absent'), 0.6);
     weReady = true;
     loading.style.display = 'none';
     NOW = performance.now();
