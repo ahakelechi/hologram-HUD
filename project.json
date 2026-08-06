@@ -106,6 +106,10 @@
 					{
 						"label": "Paper",
 						"value": "paper"
+					},
+					{
+						"label": "Custom gradient",
+						"value": "custom"
 					}
 				]
 			},
@@ -199,7 +203,7 @@
 				"type": "slider",
 				"value": 130,
 				"min": 60,
-				"max": 220,
+				"max": 600,
 				"step": 5
 			},
 			"hudbright": {
@@ -647,6 +651,42 @@
 				"min": 0,
 				"max": 100,
 				"step": 5
+			},
+			"bgcolor1": {
+				"order": 53,
+				"text": "Gradient: from",
+				"type": "color",
+				"value": "0.043 0.102 0.188"
+			},
+			"bgcolor2": {
+				"order": 54,
+				"text": "Gradient: to",
+				"type": "color",
+				"value": "0.008 0.016 0.039"
+			},
+			"bgangle": {
+				"order": 55,
+				"text": "Gradient angle",
+				"type": "slider",
+				"value": 165,
+				"min": 0,
+				"max": 360,
+				"step": 5
+			},
+			"bgwash": {
+				"order": 56,
+				"text": "Gradient accent wash (%)",
+				"type": "slider",
+				"value": 45,
+				"min": 0,
+				"max": 100,
+				"step": 5
+			},
+			"animatednumbers": {
+				"order": 57,
+				"text": "Animated readouts",
+				"type": "bool",
+				"value": true
 			}
 		},
 		"supportsaudioprocessing": true

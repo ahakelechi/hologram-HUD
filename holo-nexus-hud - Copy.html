@@ -29,6 +29,14 @@
       radial-gradient(ellipse 95% 35% at 50% 100%, rgba(var(--accent-rgb),0.09) 0%, transparent 55%),
       linear-gradient(160deg, #04060a 0%, #05080f 55%, #020407 100%);
   }
+  /* User-picked gradient. The accent wash on top is what keeps a hand-picked
+     pair of colours feeling like part of the same scene as the subject,
+     rather than an unrelated backdrop behind it. */
+  body.bg-custom {
+    background:
+      radial-gradient(ellipse at 50% 50%, rgba(var(--accent-rgb), var(--bg-wash, 0.05)) 0%, transparent 58%),
+      linear-gradient(var(--bg-angle, 165deg), var(--bg-c1, #0b1a30) 0%, var(--bg-c2, #02040a) 100%);
+  }
   /* Paper is the one backdrop that isn't a dark wash tinted by the accent —
      it needs its own warm, light parchment palette regardless of which ink
      colour is selected, or "paper" would just be a slightly warmer black. */
@@ -192,6 +200,9 @@
   .model-btn:hover { opacity: 1; background: rgba(79,232,255,0.08); }
   .model-btn.active { opacity: 1; background: rgba(79,232,255,0.16); border-color: var(--cyan); }
   .theme-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .color-row { display: flex; gap: 10px; align-items: center; }
+  .color-row label { font-size: 8.5px; letter-spacing: 0.6px; color: rgba(200,235,255,0.68); display: flex; align-items: center; gap: 5px; }
+  .color-row input[type=color] { width: 34px; height: 22px; padding: 0; border: 1px solid rgba(var(--accent-rgb),0.35); background: transparent; cursor: pointer; }
   .theme-dot { width: 21px; height: 21px; border-radius: 50%; cursor: pointer; border: 2px solid rgba(255,255,255,0.15); }
   .theme-dot.active { border-color: #fff; }
   .slider-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; min-height: 18px; }
@@ -227,6 +238,13 @@
   <div class="theme-row" id="theme-row"></div>
   <h4 style="margin-top:12px;">Backdrop</h4>
   <div class="model-row" id="bg-row"></div>
+  <div id="custom-only" style="display:none;">
+    <h4 style="margin-top:12px;">Gradient</h4>
+    <div class="color-row">
+      <label>FROM <input type="color" id="bg-c1"></label>
+      <label>TO <input type="color" id="bg-c2"></label>
+    </div>
+  </div>
   <div id="paper-only">
     <h4 style="margin-top:12px;">Ink</h4>
     <div class="theme-row" id="ink-row"></div>
@@ -353,6 +371,7 @@ const BG_STYLES = {
   nebula: { name: 'Nebula' },   // two offset colour pools, more depth
   aurora: { name: 'Aurora' },   // banded wash top and bottom
   paper:  { name: 'Paper' },    // warm parchment — the one light backdrop
+  custom: { name: 'Custom' },   // user-picked gradient
 };
 
 const PARTICLE_STYLES = {
@@ -446,6 +465,13 @@ const DEFAULT_CONFIG = {
   subjectOpacity: 100,   // % — full strength unless deliberately dialled back
   // Ambient bed. Off by default: a wallpaper that makes noise unasked is a
   // bad neighbour, and it needs a click to start under browser autoplay rules.
+  // Readouts scramble briefly when their value changes.
+  animatedNumbers: true,
+  // Custom backdrop gradient, used by the 'custom' backdrop style.
+  bgColor1: '#0b1a30',
+  bgColor2: '#02040a',
+  bgAngle: 165,
+  bgWash: 45,            // % strength of the accent wash over the gradient
   ambient: false,
   ambientVolume: 25,     // %
   globeModel: 'earth',   // which baked model rides the small orbital instrument
@@ -509,7 +535,7 @@ const SMOOTH_KEYS = [
   'modelX', 'modelY', 'projectorX', 'projectorY', 'projectorZ', 'hueShift',
   'reticleX', 'reticleY', 'reticleScale', 'reticleSpin', 'reticleDetail',
   'modelSpinSpeed', 'clockX', 'clockY', 'hudLeftX', 'hudLeftY', 'subjectOpacity',
-  'hudRightX', 'hudRightY', 'hudColW', 'hudTextTint', 'globeSpinSpeed', 'ambientVolume',
+  'hudRightX', 'hudRightY', 'hudColW', 'hudTextTint', 'globeSpinSpeed', 'ambientVolume', 'bgAngle', 'bgWash',
 ];
 const SMOOTH = {};
 function initSmooth() { SMOOTH_KEYS.forEach((k) => { SMOOTH[k] = CONFIG[k]; }); }
@@ -1819,7 +1845,14 @@ function heroParams() {
 // entirely — this is the difference between an idle wallpaper costing
 // ~0.3ms and ~4ms a frame.
 function heroSig(p, r0) {
-  return [r0 | 0, headYaw.toFixed(5), headPitch.toFixed(5), parallax.x.toFixed(2), parallax.y.toFixed(2),
+  // heroYaw, not headYaw. The rendered angle is headYaw + yaw0 + spinYaw, and
+  // the turntable lives entirely in spinYaw — which this signature used to
+  // omit. With the cursor parked the signature never changed, so the cached
+  // point layer was never re-rasterised and the spin simply did not appear;
+  // it advanced invisibly until some unrelated event (audio, a ripple, a
+  // cursor move) dirtied the scene, and the subject jumped to its accumulated
+  // angle. That is the "spin hangs, then breaks" behaviour.
+  return [r0 | 0, heroYaw.toFixed(5), headPitch.toFixed(5), parallax.x.toFixed(2), parallax.y.toFixed(2),
     p.gain.toFixed(4), p.key.toFixed(4), (p.rim || 1).toFixed(4), p.jawAngle.toFixed(4), p.scanY.toFixed(3), p.jitAmp.toFixed(5),
     ripple.toFixed(3), CONFIG.theme, CONFIG.model, CONFIG.aberration ? 1 : 0, heroPoints.length].join('|');
 }
@@ -2145,6 +2178,37 @@ function drawWaveform(x, y, w, h, alpha) {
 // which left every panel as an undifferentiated grey block. Labels now sit
 // well back in the accent colour and values come forward in near-white,
 // with a dotted leader joining them — the value is the thing you read.
+// Readout animation. A value that snaps from one string to the next reads as
+// static text; a real instrument settles into a new figure. On change, the
+// digits scramble briefly and resolve left-to-right, so the eye catches that
+// something moved without anything looping — the effect is driven entirely by
+// the value changing, and costs nothing while the numbers are steady.
+const ROLL = new Map();
+const ROLL_MS = 420;
+function rollActive() {
+  if (!CONFIG.animatedNumbers) return false;
+  for (const st of ROLL.values()) if (NOW - st.at < ROLL_MS) return true;
+  return false;
+}
+function rollText(key, text) {
+  if (!CONFIG.animatedNumbers) return text;
+  let st = ROLL.get(key);
+  if (!st) { ROLL.set(key, { shown: text, at: -1e9 }); return text; }
+  if (st.shown !== text) { st.shown = text; st.at = NOW; }
+  const age = NOW - st.at;
+  if (age >= ROLL_MS) return text;
+  // Resolve position by position: early on almost everything is scrambled,
+  // by the end only the tail is still moving.
+  const p = age / ROLL_MS;
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const settled = (i + 1) / text.length <= p * 1.25;
+    if (settled || ch < '0' || ch > '9') out += ch;
+    else out += String((Math.random() * 10) | 0);
+  }
+  return out;
+}
 function rows(x, y, lineH, items) {
   items.forEach((r, i) => {
     const ry = y + i * lineH;
@@ -2155,7 +2219,7 @@ function rows(x, y, lineH, items) {
     // Fit the value before drawing anything. A long value (PLATFORM
     // "Windows", a wide heap figure) previously ran straight into its own
     // label with no gap at all — it only shows up at 1:1.
-    let val = String(r[1]);
+    let val = rollText('row:' + r[0] + ':' + i, String(r[1]));
     ctx.font = '10px ' + fontMono();
     let vw = ctx.measureText(val).width;
     const room = avail - kw - 8;
@@ -2460,7 +2524,7 @@ function drawTicker() {
     // loop wearing a costume, so they are excluded from the highlight.
     const flashable = k !== 'UP' && k !== 'FPS' && k !== 'LAG' && k !== 'HEAP' && k !== 'AUDIO';
     const fl = flashable ? Math.max(0, 1 - (NOW - (FIELD_STATE.get(k).at || -1e9)) / 900) : 0;
-    const text = k + ' ' + v;
+    const text = k + ' ' + rollText('tick:' + k, String(v));
     const wpx = ctx.measureText(text).width;
     if (x + wpx > W - 30) break;
     ctx.fillStyle = acc(0.44 + fl * 0.50);
@@ -3239,7 +3303,35 @@ const RING_STYLES = {
   sonar:   { name: 'Sonar' },
 };
 const CLOCK_POSITIONS = { left: { name: 'Left' }, center: { name: 'Center' }, right: { name: 'Right' } };
+// Wallpaper Engine hands colours back as "r g b" floats in 0..1, while the
+// DOM colour input speaks "#rrggbb". Both directions are needed because the
+// same setting is reachable from either place.
+function weColorToHex(v) {
+  if (typeof v !== 'string') return null;
+  const p = v.trim().split(/\s+/).map(Number);
+  if (p.length < 3 || p.some(isNaN)) return null;
+  return '#' + p.slice(0, 3).map((c) => {
+    const n = Math.max(0, Math.min(255, Math.round(c * 255)));
+    return n.toString(16).padStart(2, '0');
+  }).join('');
+}
+let colorInputsBound = false;
+function bindColorInputs() {
+  if (colorInputsBound) return;
+  [['bg-c1', 'bgColor1'], ['bg-c2', 'bgColor2']].forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = CONFIG[key];
+    el.addEventListener('input', () => {
+      CONFIG[key] = el.value;
+      saveConfig();
+      applyDomSettings();
+    });
+  });
+  colorInputsBound = true;
+}
 function renderChromeRows() {
+  bindColorInputs();
   renderPickRow('ring-row', RING_STYLES, 'reticleStyle');
   renderPickRow('font-row', FONT_STACKS, 'hudFont');
   renderPickRow('clockpos-row', CLOCK_POSITIONS, 'clockPos');
@@ -3364,6 +3456,8 @@ const SETTING_GROUPS = [
   { title: 'Background',
     sliders: [
       ['bgParticles', 'Background particles', 0, 10130, '', 10, { rebuildStars: true }],
+      ['bgAngle', 'Gradient angle', 0, 360, '°', 5],
+      ['bgWash', 'Gradient accent wash', 0, 100, '%', 5],
     ],
     toggles: [] },
   { title: 'Mouse & Look', open: true,
@@ -3395,7 +3489,7 @@ const SETTING_GROUPS = [
   { title: 'Panels & HUD',
     sliders: [
       ['hudBright', 'Panels', 20, 200, '%', 1],
-      ['clockScale', 'Clock size', 60, 220, '%', 1],
+      ['clockScale', 'Clock size', 60, 600, '%', 1],
       ['globeSpinSpeed', 'Orbital spin speed', 0, 400, '%', 5],
     ],
     toggles: [
@@ -3417,6 +3511,7 @@ const SETTING_GROUPS = [
       ['aberration', 'Chromatic aberration'],
       ['scan', 'Scan on refocus'],
       ['glitch', 'Random glitch'],
+      ['animatedNumbers', 'Animated readouts'],
       ['particles', 'Data packets'],
       ['blink', 'Blink on events'],
     ] },
@@ -3485,6 +3580,16 @@ function applyDomSettings() {
   bod.classList.add('bg-' + (BG_STYLES[CONFIG.bgStyle] ? CONFIG.bgStyle : 'void'));
   if (isPaper()) bod.classList.add('tex-' + (PAPER_TEXTURES[CONFIG.paperTexture] ? CONFIG.paperTexture : 'plain'));
   bod.classList.toggle('clock-center', CONFIG.clockPos === 'center');
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty('--bg-c1', CONFIG.bgColor1);
+  rootStyle.setProperty('--bg-c2', CONFIG.bgColor2);
+  rootStyle.setProperty('--bg-angle', (SMOOTH.bgAngle | 0) + 'deg');
+  rootStyle.setProperty('--bg-wash', ((SMOOTH.bgWash ?? 45) / 100 * 0.22).toFixed(3));
+  const cw = document.getElementById('custom-only');
+  if (cw) cw.style.display = CONFIG.bgStyle === 'custom' ? '' : 'none';
+  const c1 = document.getElementById('bg-c1'), c2 = document.getElementById('bg-c2');
+  if (c1 && c1.value !== CONFIG.bgColor1) c1.value = CONFIG.bgColor1;
+  if (c2 && c2.value !== CONFIG.bgColor2) c2.value = CONFIG.bgColor2;
 }
 
 function settingChanged(opts) {
@@ -3632,7 +3737,9 @@ function sceneIsActive() {
     || (CONFIG.particleStyle && CONFIG.particleStyle !== 'static')
     // A turning ring or a spinning subject is continuous motion by
     // definition; throttled to the idle frame rate it would visibly step.
-    || (CONFIG.reticleSpin > 0) || CONFIG.modelSpin;
+    || (CONFIG.reticleSpin > 0) || CONFIG.modelSpin
+    // a resolving readout is motion too, and would otherwise crawl at idle fps
+    || rollActive();
 }
 function frame() {
   requestAnimationFrame(frame);
@@ -3813,6 +3920,11 @@ function handleWEProperties(properties) {
   if (P.globespinspeed !== undefined) CONFIG.globeSpinSpeed = Number(val(P.globespinspeed));
   if (P.ambient !== undefined) { CONFIG.ambient = !!val(P.ambient); if (CONFIG.ambient) ambientStart(); }
   if (P.ambientvolume !== undefined) CONFIG.ambientVolume = Number(val(P.ambientvolume));
+  if (P.bgcolor1) { const h = weColorToHex(val(P.bgcolor1)); if (h) CONFIG.bgColor1 = h; }
+  if (P.bgcolor2) { const h = weColorToHex(val(P.bgcolor2)); if (h) CONFIG.bgColor2 = h; }
+  if (P.bgangle !== undefined) CONFIG.bgAngle = Number(val(P.bgangle));
+  if (P.bgwash !== undefined) CONFIG.bgWash = Number(val(P.bgwash));
+  if (P.animatednumbers !== undefined) CONFIG.animatedNumbers = !!val(P.animatednumbers);
   if (P.density !== undefined && Number(val(P.density)) !== CONFIG.density) {
     CONFIG.density = Number(val(P.density));
     modelChanged = true;   // density is baked into the point list, so re-run the build
