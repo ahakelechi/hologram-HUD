@@ -6,13 +6,75 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
-  :root { --cyan: #4fe8ff; --text: #dff7ff; }
+  :root { --cyan: #4fe8ff; --text: #dff7ff; --accent-rgb: 79,232,255; }
   html, body {
     margin: 0; padding: 0; width: 100%; height: 100%;
-    background:
-      radial-gradient(ellipse at 50% 50%, rgba(79,232,255,0.05) 0%, transparent 55%),
-      linear-gradient(160deg, #04060a 0%, #05080f 55%, #020407 100%);
     overflow: hidden; font-family: 'Share Tech Mono', monospace;
+  }
+  body.bg-void {
+    background:
+      radial-gradient(ellipse at 50% 50%, rgba(var(--accent-rgb),0.05) 0%, transparent 55%),
+      linear-gradient(160deg, #04060a 0%, #05080f 55%, #020407 100%);
+  }
+  body.bg-nebula {
+    background:
+      radial-gradient(ellipse 70% 55% at 28% 22%, rgba(var(--accent-rgb),0.11) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 76% 82%, rgba(var(--accent-rgb),0.07) 0%, transparent 65%),
+      radial-gradient(ellipse at 50% 50%, rgba(var(--accent-rgb),0.04) 0%, transparent 55%),
+      linear-gradient(160deg, #04060a 0%, #05080f 55%, #020407 100%);
+  }
+  body.bg-aurora {
+    background:
+      radial-gradient(ellipse 95% 38% at 50% 0%, rgba(var(--accent-rgb),0.15) 0%, transparent 62%),
+      radial-gradient(ellipse 95% 35% at 50% 100%, rgba(var(--accent-rgb),0.09) 0%, transparent 55%),
+      linear-gradient(160deg, #04060a 0%, #05080f 55%, #020407 100%);
+  }
+  /* Paper is the one backdrop that isn't a dark wash tinted by the accent —
+     it needs its own warm, light parchment palette regardless of which ink
+     colour is selected, or "paper" would just be a slightly warmer black. */
+  body.bg-paper {
+    /* Held in a variable so each stock can layer rules or grids on top of
+       the sheet without restating it. */
+    --paper-sheet:
+      radial-gradient(ellipse 60% 45% at 22% 15%, rgba(255,255,255,0.40) 0%, transparent 60%),
+      radial-gradient(ellipse 70% 60% at 80% 85%, rgba(120,95,60,0.10) 0%, transparent 65%),
+      linear-gradient(165deg, #f2ebda 0%, #e8dfc6 45%, #dcd0b0 100%);
+    --rule: rgba(60,90,140,0.30);
+    --rule-fine: rgba(70,95,135,0.16);
+    background: var(--paper-sheet);
+  }
+  body.bg-paper.tex-ruled {
+    background:
+      repeating-linear-gradient(to bottom, transparent 0 27px, var(--rule) 27px 28px),
+      var(--paper-sheet);
+  }
+  body.bg-paper.tex-grid {
+    background:
+      repeating-linear-gradient(to bottom, transparent 0 23px, var(--rule-fine) 23px 24px),
+      repeating-linear-gradient(to right,  transparent 0 23px, var(--rule-fine) 23px 24px),
+      var(--paper-sheet);
+  }
+  body.bg-paper.tex-graph {
+    background:
+      repeating-linear-gradient(to bottom, transparent 0 49px, var(--rule) 49px 50px),
+      repeating-linear-gradient(to right,  transparent 0 49px, var(--rule) 49px 50px),
+      repeating-linear-gradient(to bottom, transparent 0 9px, var(--rule-fine) 9px 10px),
+      repeating-linear-gradient(to right,  transparent 0 9px, var(--rule-fine) 9px 10px),
+      var(--paper-sheet);
+  }
+  body.bg-paper.tex-aged {
+    --paper-sheet:
+      radial-gradient(ellipse 40% 30% at 18% 22%, rgba(150,110,60,0.16) 0%, transparent 70%),
+      radial-gradient(ellipse 35% 40% at 82% 70%, rgba(140,100,50,0.18) 0%, transparent 72%),
+      radial-gradient(ellipse 30% 25% at 60% 12%, rgba(120,85,40,0.12) 0%, transparent 70%),
+      linear-gradient(165deg, #e8dcbc 0%, #dbcba2 45%, #c9b585 100%);
+    background: var(--paper-sheet);
+  }
+  body.bg-paper.tex-kraft {
+    --paper-sheet:
+      radial-gradient(ellipse 60% 45% at 25% 18%, rgba(255,240,215,0.16) 0%, transparent 62%),
+      linear-gradient(165deg, #c9a878 0%, #bb9866 45%, #a88454 100%);
+    background: var(--paper-sheet);
   }
   canvas { display: block; position: absolute; top: 0; left: 0; }
   .scanlines {
@@ -21,8 +83,18 @@
        at 0.030 it was measurably eating the thin strokes. The contrast
        gain comes from the vignette instead, which costs no legibility. */
     background: repeating-linear-gradient(to bottom,
-      rgba(79,232,255,0.018) 0px, rgba(79,232,255,0.018) 1px, transparent 1px, transparent 3px);
+      rgba(var(--accent-rgb),0.018) 0px, rgba(var(--accent-rgb),0.018) 1px, transparent 1px, transparent 3px);
     mix-blend-mode: screen;
+  }
+  /* Paper flips the blend logic: 'screen' lightens, which washes out on a
+     light backdrop instead of reading as fine printed lines, and grain
+     needs to sit a little heavier to read as fiber texture. */
+  body.bg-paper .scanlines { mix-blend-mode: multiply; opacity: 0.4; }
+  body.bg-paper .grain { opacity: 0.05; }
+  body.bg-paper .vignette {
+    background:
+      radial-gradient(ellipse at 50% 47%, transparent 30%, rgba(90,70,45,0.10) 65%, rgba(60,45,28,0.30) 100%),
+      linear-gradient(to bottom, rgba(60,45,28,0.12) 0%, transparent 14%, transparent 86%, rgba(60,45,28,0.16) 100%);
   }
   /* Two-stage vignette. A single stop darkened the corners but left the
      midfield flat; pulling the falloff in and deepening the outer stop is
@@ -30,6 +102,7 @@
      subject something genuinely black to sit against. */
   .vignette {
     position: absolute; inset: 0; pointer-events: none; z-index: 6;
+    transition: opacity 0.35s ease;
     background:
       radial-gradient(ellipse at 50% 47%, transparent 26%, rgba(0,0,0,0.42) 62%, rgba(0,0,0,0.88) 100%),
       linear-gradient(to bottom, rgba(0,0,0,0.30) 0%, transparent 14%, transparent 86%, rgba(0,0,0,0.42) 100%);
@@ -47,6 +120,23 @@
     cursor: pointer; opacity: 0.35; transition: opacity 0.2s;
   }
   #gear:hover { opacity: 1; }
+  /* Only ever shown when the Wallpaper Engine audio bridge is absent, i.e.
+     when this page is opened directly in a browser. */
+  #mic-btn {
+    display: none;
+    position: absolute; z-index: 20; top: 14px; left: 50%;
+    transform: translateX(calc(-50% + 30px));
+    padding: 5px 12px; border-radius: 14px;
+    border: 1px solid rgba(var(--accent-rgb),0.45); background: rgba(6,10,18,0.62);
+    color: rgb(var(--accent-rgb)); font: 9.5px 'Share Tech Mono', monospace;
+    letter-spacing: 1px; cursor: pointer; opacity: 0.55; transition: opacity 0.2s;
+    white-space: nowrap;
+  }
+  #mic-btn:hover { opacity: 1; }
+  /* A centred clock lands exactly where these two live, so they step aside
+     rather than sitting on top of the time. */
+  body.clock-center #gear { left: auto; right: 26px; transform: none; }
+  body.clock-center #mic-btn { left: auto; right: 62px; transform: none; }
   #settings {
     position: absolute; z-index: 21; top: 50px; left: 50%; transform: translateX(-50%);
     width: 312px; max-height: 84vh; overflow-y: auto; overscroll-behavior: contain;
@@ -55,6 +145,12 @@
     box-shadow: 0 10px 40px rgba(0,0,0,0.6);
   }
   #settings.on { display: block; }
+  #drag-handle {
+    margin: -13px -15px 10px; padding: 6px 15px; cursor: move; user-select: none;
+    text-align: center; font-size: 9px; letter-spacing: 3px; color: var(--cyan);
+    opacity: 0.45; background: rgba(79,232,255,0.06); border-bottom: 1px solid rgba(79,232,255,0.15);
+  }
+  #drag-handle:hover { opacity: 0.85; }
   #settings::-webkit-scrollbar { width: 8px; }
   #settings::-webkit-scrollbar-thumb { background: rgba(79,232,255,0.25); }
   #settings h4 {
@@ -110,18 +206,40 @@
   }
 </style>
 </head>
-<body>
+<body class="bg-void">
 <canvas id="c"></canvas>
 <div class="scanlines"></div>
 <div class="vignette"></div>
 <div class="grain"></div>
 
 <div id="gear" title="Settings">⚙</div>
+<div id="mic-btn" title="Use the microphone as the audio source">🎤 ENABLE AUDIO</div>
 <div id="settings">
-  <h4>Model</h4>
+  <div id="drag-handle" title="Drag to move this panel">⋮⋮ DRAG TO MOVE ⋮⋮</div>
+  <h4>Surface</h4>
+  <div class="model-row" id="surface-row"></div>
+  <h4 style="margin-top:12px;">Model</h4>
   <div class="model-row" id="model-row"></div>
   <h4 style="margin-top:12px;">Signal Colour</h4>
   <div class="theme-row" id="theme-row"></div>
+  <h4 style="margin-top:12px;">Backdrop</h4>
+  <div class="model-row" id="bg-row"></div>
+  <div id="paper-only">
+    <h4 style="margin-top:12px;">Ink</h4>
+    <div class="theme-row" id="ink-row"></div>
+    <h4 style="margin-top:12px;">Paper Stock</h4>
+    <div class="model-row" id="paper-tex-row"></div>
+  </div>
+  <h4 style="margin-top:12px;">Particle Motion</h4>
+  <div class="model-row" id="particle-row"></div>
+  <h4 style="margin-top:12px;">Orbital Instrument</h4>
+  <div class="model-row" id="globemodel-row"></div>
+  <h4 style="margin-top:12px;">Ring Style</h4>
+  <div class="model-row" id="ring-row"></div>
+  <h4 style="margin-top:12px;">HUD Font</h4>
+  <div class="model-row" id="font-row"></div>
+  <h4 style="margin-top:12px;">Clock Position</h4>
+  <div class="model-row" id="clockpos-row"></div>
   <div id="settings-body"></div>
   <div class="set-foot">
     <button class="btn" id="reset-btn">RESET ALL</button>
@@ -153,10 +271,32 @@
 // only when the cursor or the audio stream gives them a reason to.
 const MODEL_CFG = {
   human:   { label: 'HUMAN SUBJECT', scale: 0.82, offY: -0.28, yaw0: 0,          pitch0: 0,    jaw: true,  eyes: true,  id: 'BIO-7741' },
-  android: { label: 'ANDROID UNIT',  scale: 0.92, offY: 0.00,  yaw0: Math.PI/2,  pitch0: 0,    jaw: false, eyes: false, id: 'SYN-0192' },
   titan:   { label: 'TITAN CLASS',   scale: 0.90, offY: 0.00,  yaw0: 0,          pitch0: 0,    jaw: false, eyes: false, id: 'TTN-0001' },
   drone:   { label: 'RECON DRONE',   scale: 0.88, offY: 0.00,  yaw0: 0.35,       pitch0: 0.25, jaw: false, eyes: false, id: 'RCN-4420' },
-  vehicle: { label: 'GROUND UNIT',   scale: 0.88, offY: 0.00,  yaw0: 0.30,       pitch0: 0.30, jaw: false, eyes: false, id: 'GRD-8830' },
+  // Landmarks read off the skull itself, and they are unusually legible on
+  // one: the orbits are actual holes, so the socket probe bottoms out hard,
+  // and the gap between the upper teeth and the mandible shows up as a
+  // discontinuity in the front profile — that gap is the mouth line.
+  skull:   { label: 'SKULL',         scale: 0.82, offY: -0.28, yaw0: 0,          pitch0: 0,    jaw: true,  eyes: true,  id: 'SKL-0451',
+             land: { noseY: 0.02, mouthY: -0.17, chinY: -0.78, eyeY: 0.14, eyeX: 0.25, pivotY: -0.02, pivotZ: -0.28 } },
+  // Landmarks measured off this mesh rather than inherited from the human:
+  // eyeY from the eye-socket floor (the deepest recess of the face surface
+  // at |x| 0.13..0.30), noseY from the frontmost centreline point, chinY
+  // from where the front profile drops away into the neck. The same probe
+  // run against the human mesh returns 0.320 for an authored 0.325, which
+  // is what makes these trustworthy.
+  vampire: { label: 'VAMPIRE SUBJECT', scale: 0.82, offY: -0.28, yaw0: 0,        pitch0: 0,    jaw: true,  eyes: true,  id: 'VMP-6660',
+             land: { noseY: 0.05, mouthY: -0.165, chinY: -0.40, eyeY: 0.21, eyeX: 0.22, pivotY: 0.02, pivotZ: -0.21 } },
+  // Cropped from the full figure to head-and-neck at bake time, which is
+  // what makes a face possible here at all: uncropped, the head was ~0.16
+  // wide in a 1.75 frame and every landmark probe returned noise. Filling
+  // the frame with the head resolves a real profile — brow, bridge, nose
+  // tip, chin — so these are measured, not inherited.
+  zombie:  { label: 'ZOMBIE SUBJECT',  scale: 0.82, offY: -0.28, yaw0: 0,        pitch0: 0,    jaw: true,  eyes: true,  id: 'ZMB-3130',
+             land: { noseY: -0.23, mouthY: -0.38, chinY: -0.60, eyeY: 0.125, eyeX: 0.22, pivotY: -0.10, pivotZ: -0.27 } },
+  // The original uncropped figure, kept as its own subject. No face here
+  // for the reason above — it's meant to read as a whole body.
+  zombiefull: { label: 'ZOMBIE FIGURE', scale: 0.88, offY: 0.00, yaw0: 0,        pitch0: 0,    jaw: false, eyes: false, id: 'ZMB-3131' },
 };
 const MODEL_KEYS = Object.keys(MODEL_CFG);
 
@@ -166,12 +306,86 @@ const THEMES = {
   violet:    { name: 'Violet',    accent: '172,112,255', swatch: '#ac70ff' },
   amber:     { name: 'Amber',     accent: '255,168,64',  swatch: '#ffa840' },
   mint:      { name: 'Mint',      accent: '110,255,196', swatch: '#6effc4' },
+  sepia:     { name: 'Sepia',     accent: '92,58,32',     swatch: '#5c3a20' },
+};
+
+// Paper is the one backdrop the neon themes cannot serve: every accent in
+// THEMES is a light source picked to glow on black, and on a lit sheet
+// those read as washed-out pastel. These are pigments instead — dark,
+// low-chroma, and legible as marks rather than as light.
+const PAPER_INKS = {
+  graphite:  { name: 'Graphite',  accent: '66,62,58',   swatch: '#423e3a' },
+  charcoal:  { name: 'Charcoal',  accent: '30,28,26',   swatch: '#1e1a1a' },
+  ballpoint: { name: 'Ballpoint', accent: '34,48,116',  swatch: '#223074' },
+  sepia:     { name: 'Sepia',     accent: '94,56,26',   swatch: '#5e381a' },
+  redpen:    { name: 'Red pen',   accent: '134,26,26',  swatch: '#861a1a' },
+};
+// Paper stock. Kept separate from the ink so the two combine freely —
+// graphite on graph paper, red pen on kraft, and so on.
+const PAPER_TEXTURES = {
+  plain: { name: 'Plain' },
+  ruled: { name: 'Ruled' },
+  grid:  { name: 'Grid' },
+  graph: { name: 'Graph' },
+  aged:  { name: 'Aged' },
+  kraft: { name: 'Kraft' },
+};
+
+// Subjects the small orbital instrument can carry. Each needs its own scale
+// and vertical offset: the globe is authored centred and roughly unit-sized,
+// while the head models sit high in their frame and would otherwise hang off
+// the top of the little panel.
+const GLOBE_MODELS = {
+  earth:   { name: 'Globe',   scale: 1.00, offY: 0.00 },
+  skull:   { name: 'Skull',   scale: 0.78, offY: 0.20 },
+  drone:   { name: 'Drone',   scale: 0.85, offY: 0.00 },
+  titan:   { name: 'Titan',   scale: 0.80, offY: 0.00 },
+  vampire: { name: 'Vampire', scale: 0.78, offY: 0.20 },
+  zombie:  { name: 'Zombie',  scale: 0.78, offY: 0.20 },
+  human:   { name: 'Human',   scale: 0.78, offY: 0.22 },
+};
+
+const BG_STYLES = {
+  void:   { name: 'Void' },     // faint single wash — original look
+  nebula: { name: 'Nebula' },   // two offset colour pools, more depth
+  aurora: { name: 'Aurora' },   // banded wash top and bottom
+  paper:  { name: 'Paper' },    // warm parchment — the one light backdrop
+};
+
+const PARTICLE_STYLES = {
+  static: { name: 'Static' },   // original — fixed field, no motion
+  drift:  { name: 'Drift' },    // slow random wander, wraps at the edges
+  rise:   { name: 'Rise' },     // embers/sparks drifting upward
+  fall:   { name: 'Fall' },     // snow-like, drifting downward
+};
+
+// Curated combinations — colour + backdrop + optics + particle motion tuned
+// together for a distinct material "feel" rather than one slider at a time.
+const SURFACES = {
+  chrome:   { theme: 'cyan',      hueShift: 0,    bgStyle: 'void',   bloomAmount: 100, contrast: 100, shimmerAmount: 100, particleStyle: 'static' },
+  crimson:  { theme: 'broadcast', hueShift: 0,    bgStyle: 'aurora', bloomAmount: 120, contrast: 110, shimmerAmount: 90,  particleStyle: 'rise' },
+  amethyst: { theme: 'violet',    hueShift: 0,    bgStyle: 'nebula', bloomAmount: 110, contrast: 105, shimmerAmount: 110, particleStyle: 'drift' },
+  gold:     { theme: 'amber',     hueShift: 0,    bgStyle: 'nebula', bloomAmount: 130, contrast: 95,  shimmerAmount: 120, particleStyle: 'rise' },
+  jade:     { theme: 'mint',      hueShift: 0,    bgStyle: 'void',   bloomAmount: 90,  contrast: 100, shimmerAmount: 80,  particleStyle: 'static' },
+  arctic:   { theme: 'cyan',      hueShift: 190,  bgStyle: 'aurora', bloomAmount: 140, contrast: 90,  shimmerAmount: 130, particleStyle: 'fall' },
+  toxic:    { theme: 'mint',      hueShift: -40,  bgStyle: 'nebula', bloomAmount: 110, contrast: 110, shimmerAmount: 100, particleStyle: 'drift' },
+  obsidian: { theme: 'violet',    hueShift: -30,  bgStyle: 'void',   bloomAmount: 70,  contrast: 140, shimmerAmount: 60,  particleStyle: 'static' },
+  // Paper inverts the whole game: everything else here is additive glow on
+  // black, which is exactly wrong on a light backdrop — bloom and shimmer
+  // are pulled way down and contrast pushed up so the ink stays dark and
+  // crisp instead of washing out toward white.
+  // On paper the ink comes from paperInk, not from THEMES, so `theme` here
+  // only decides what you fall back to if you switch the backdrop away.
+  paper:    { theme: 'cyan',      hueShift: 0,    bgStyle: 'paper',  bloomAmount: 0,   contrast: 100, shimmerAmount: 25,  particleStyle: 'static',
+              paperInk: 'graphite', paperTexture: 'plain' },
 };
 
 const DEFAULT_CONFIG = {
   model: 'human', theme: 'cyan', density: 100, sensitivity: 100, mouseReactive: true,
   // ---- Subject ----
   scale: 100,           // overall size, % of the model's authored scale
+  modelX: 0,            // px, subject position left/right
+  modelY: 0,            // px, subject position up/down
   subjectBright: 100,   // exposure on the point cloud
   keyAmount: 100,       // key light
   rimAmount: 100,       // rim light — the biggest single look lever
@@ -192,6 +406,57 @@ const DEFAULT_CONFIG = {
   shimmerAmount: 100,
   idleFps: 15,          // frame rate while nothing is happening
   hud: true, globe: true, bloom: true, scan: true, glitch: true, particles: true,
+  glitchFreq: 100,      // % — how often/how many slices a glitch throws
+  glitchSize: 100,      // % — how tall/how far each glitch slice shifts
+  bottomMargin: 40,      // px kept clear above the true bottom edge (taskbar/dock)
+  eyeGlow: false,        // the lit halo/iris/core assembly over the eyes
+  eyeGlowAmount: 100,    // % intensity when eyeGlow is on
+  hueShift: 0,           // degrees, rotates the active theme's accent colour
+  bgStyle: 'void',       // 'void' | 'nebula' | 'aurora' | 'paper' backdrop wash
+  // ---- Clock placement ----
+  clockPos: 'right',     // 'right' | 'center' | 'left'
+  clockX: 0, clockY: 0,  // px nudge on top of the chosen anchor
+  // ---- HUD columns ----
+  // Per-side offsets so the two instrument stacks can be pushed around
+  // independently of each other and of the subject.
+  hudLeftX: 0, hudLeftY: 0,
+  hudRightX: 0, hudRightY: 0,
+  hudColW: 100,          // % of the derived column width
+  // ---- Typography ----
+  hudFont: 'mono',       // 'mono' | 'display' | 'system' | 'serif'
+  hudTextTint: 0,        // % blend of the HUD ink toward the accent colour
+  // ---- Ring (the structure behind the subject) ----
+  // Deliberately not routed through heroCX/heroCY: the ring is the
+  // apparatus the subject is projected into, so it holds its own place
+  // when the subject is nudged around with Position X/Y.
+  reticleStyle: 'classic',  // 'classic' | 'vault' | 'orbital' | 'sonar'
+  reticleX: 0, reticleY: 0, // px, independent of the subject
+  reticleScale: 100,        // %
+  reticleSpin: 35,          // % of full speed; 0 holds it still
+  reticleDetail: 100,       // % — how much structure gets drawn
+  // ---- Subject turntable ----
+  // The rest of this build is event-driven on purpose, so a permanent
+  // rotation is opt-in and off by default.
+  // Subject stacking. On by default: the subject is the thing you are
+  // looking at, so nothing else should be able to sit over it.
+  subjectFront: true,
+  subjectOpacity: 100,   // % — full strength unless deliberately dialled back
+  globeModel: 'earth',   // which baked model rides the small orbital instrument
+  globeSpinSpeed: 100,   // % of the base ~39s revolution
+  modelSpin: false,
+  modelSpinSpeed: 30,       // % of one revolution per ~40s at 100%
+  paperInk: 'graphite',  // pigment used for everything while on paper
+  paperTexture: 'plain', // paper stock, chosen independently of the ink
+  inkStrength: 100,      // % — how hard the pencil presses on the subject
+  bgParticles: 100,      // % of the base 130 background stars
+  particleStyle: 'static', // 'static' | 'drift' | 'rise' | 'fall'
+  clockScale: 130,       // % size of the header clock/calendar
+  audioRing: true,       // radial spectrum ring around the subject
+  audioRingAmount: 100,  // % — how far the ring's bars extend
+  projectorX: 0,         // px, floor-pad offset left/right
+  projectorY: 0,         // px, floor-pad offset up/down — push down to seat
+                         // it right at the true bottom edge
+  projectorZ: 100,       // % — depth: bigger/taller cone = "closer", smaller = "further"
   // 'system' = Wallpaper Engine's output stream, 'mic' = microphone,
   // 'off' = no analysis. There is deliberately no synthetic fallback:
   // the readouts are meant to reflect what is actually playing.
@@ -222,7 +487,82 @@ try { CONFIG = JSON.parse(localStorage.getItem('holoNexusConfig')); } catch (e) 
 CONFIG = Object.assign({}, DEFAULT_CONFIG, CONFIG || {});
 if (!MODEL_CFG[CONFIG.model]) CONFIG.model = 'human';
 function saveConfig() { try { localStorage.setItem('holoNexusConfig', JSON.stringify(CONFIG)); } catch (e) {} }
-function theme() { return THEMES[CONFIG.theme] || THEMES.cyan; }
+
+// Continuous look-sliders ease toward their new value instead of jumping,
+// so dragging one while the wallpaper previews live reads as fluid rather
+// than a series of snaps. Discrete choices (model, theme, toggles) still
+// apply instantly — only the numeric "feel" sliders go through this.
+const SMOOTH_KEYS = [
+  'rimAmount', 'keyAmount', 'subjectBright', 'bloomAmount', 'hudBright',
+  'eyeGlowAmount', 'audioRingAmount', 'clockScale', 'bottomMargin', 'shimmerAmount',
+  'modelX', 'modelY', 'projectorX', 'projectorY', 'projectorZ', 'hueShift',
+  'reticleX', 'reticleY', 'reticleScale', 'reticleSpin', 'reticleDetail',
+  'modelSpinSpeed', 'clockX', 'clockY', 'hudLeftX', 'hudLeftY', 'subjectOpacity',
+  'hudRightX', 'hudRightY', 'hudColW', 'hudTextTint', 'globeSpinSpeed',
+];
+const SMOOTH = {};
+function initSmooth() { SMOOTH_KEYS.forEach((k) => { SMOOTH[k] = CONFIG[k]; }); }
+function updateSmooth() {
+  const rate = 1 - Math.exp(-DT / 160);
+  SMOOTH_KEYS.forEach((k) => { SMOOTH[k] += (CONFIG[k] - SMOOTH[k]) * rate; });
+}
+initSmooth();
+// Rotates an "r,g,b" accent string around the hue wheel by `deg`, so the
+// Color slider can fine-tune any preset continuously instead of jumping
+// between the five fixed swatches.
+function hueShiftRGB(rgbStr, deg) {
+  if (!deg) return rgbStr;
+  const [r, g, b] = rgbStr.split(',').map(Number);
+  const rr = r / 255, gg = g / 255, bb = b / 255;
+  const max = Math.max(rr, gg, bb), min = Math.min(rr, gg, bb);
+  let h = 0; const l = (max + min) / 2; let s = 0;
+  const d = max - min;
+  if (d > 0.0001) {
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === rr) h = ((gg - bb) / d + (gg < bb ? 6 : 0));
+    else if (max === gg) h = (bb - rr) / d + 2;
+    else h = (rr - gg) / d + 4;
+    h /= 6;
+  }
+  h = ((h + deg / 360) % 1 + 1) % 1;
+  function hue2rgb(p, q, t) {
+    if (t < 0) t += 1; if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  }
+  let nr, ng, nb;
+  if (s < 0.0001) { nr = ng = nb = l; }
+  else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    nr = hue2rgb(p, q, h + 1 / 3); ng = hue2rgb(p, q, h); nb = hue2rgb(p, q, h - 1 / 3);
+  }
+  return Math.round(nr * 255) + ',' + Math.round(ng * 255) + ',' + Math.round(nb * 255);
+}
+// Paper is not just another backdrop: it inverts the whole rendering model
+// from light emitted on black to pigment laid on a lit sheet. Enough code
+// branches on it that it gets its own predicate.
+function isPaper() { return CONFIG.bgStyle === 'paper'; }
+// Every additive layer has to stop adding light on paper — 'lighter' there
+// drives the sheet toward white, which is the opposite of a mark.
+function glowOp() { return isPaper() ? 'source-over' : 'lighter'; }
+// The white-hot cores in the eye glow are specular highlights, which only exist
+// on an emissive subject; on paper they become ink like everything else.
+function hot(a) { return isPaper() ? acc(a) : 'rgba(255,255,255,' + Math.min(1, a) + ')'; }
+let themeCacheKey = null, themeCacheObj = null;
+function theme() {
+  if (isPaper()) return PAPER_INKS[CONFIG.paperInk] || PAPER_INKS.graphite;
+  const base = THEMES[CONFIG.theme] || THEMES.cyan;
+  const shift = SMOOTH.hueShift || 0;
+  const key = CONFIG.theme + '|' + shift;
+  if (themeCacheKey !== key) {
+    themeCacheKey = key;
+    themeCacheObj = shift ? Object.assign({}, base, { accent: hueShiftRGB(base.accent, shift) }) : base;
+  }
+  return themeCacheObj;
+}
 function modelCfg() { return MODEL_CFG[CONFIG.model]; }
 
 // ---------- Model decoding ----------
@@ -397,9 +737,27 @@ function toneAt(nx, ny, nz, ao) {
 }
 
 // Human landmarks, measured off that scan's own profile and occlusion.
-const HUMAN = { noseY: 0.16, mouthY: -0.05, chinY: -0.28, eyeY: 0.325 };
-function jawWeight(y) {
-  return smoothstep(HUMAN.mouthY, -0.24, y) * (1 - smoothstep(HUMAN.chinY, HUMAN.chinY - 0.14, y));
+// The human's landmarks, which double as the fallback for any model that
+// doesn't carry its own. Every value is in raw model space (Y spans
+// -0.875..0.875 for all models), so they're comparable across meshes.
+const HUMAN = { noseY: 0.16, mouthY: -0.05, chinY: -0.28, eyeY: 0.325, eyeX: 0.20, pivotY: 0.14, pivotZ: -0.20 };
+function landmarks(cfg) { return (cfg && cfg.land) || HUMAN; }
+function jawWeight(y, L) {
+  // Old edges (mouthY .. -0.24) put weight=0 exactly at the mouth line and
+  // only ramped up over the chin below it — so the chin rotated and the
+  // lips, sitting right on the zero point, barely moved at all. Moving the
+  // ramp to straddle the mouth line itself (weight ~1 just below the lip)
+  // means the lower lip is part of the rotating mass, so the mouth actually
+  // opens instead of just the jaw dropping under it.
+  // The ramp and the tail-off are scaled to the model's own mouth-to-chin
+  // span, so a longer or shorter face hinges over the right amount of mass
+  // instead of the human's fixed 0.06/0.14.
+  // Ratios are the human's original constants divided by its own 0.23
+  // mouth-to-chin span, so feeding HUMAN back in reproduces the previous
+  // curve exactly and any other face just gets it proportionally.
+  const span = Math.max(0.08, (L.mouthY - L.chinY));
+  const ramp = span * (0.06 / 0.23), tail = span * (0.14 / 0.23);
+  return smoothstep(L.mouthY + ramp / 3, L.mouthY - ramp, y) * (1 - smoothstep(L.chinY, L.chinY - tail, y));
 }
 
 let heroPoints = [], globePoints = [], EYE_ANCHORS = [], JAW_PIVOT_Y = 0, JAW_PIVOT_Z = 0;
@@ -408,6 +766,7 @@ function buildPoints(key, density, opts) {
   const M = decodeModel(key);
   if (!M) return [];
   const cfg = opts || { scale: 1, offY: 0, jaw: false };
+  const LAND = cfg.land || HUMAN;
   const pts = [];
   // Each vertex seeds several candidate dots offset along the surface
   // tangent. Supersampling keeps the stipple fine while still letting
@@ -440,7 +799,7 @@ function buildPoints(key, density, opts) {
         // Brightness carries occlusion only; the diffuse term is applied
         // live in the draw loop so the model reshades as it turns.
         bright: (big ? 1.4 : 1) * bright0,
-        jaw: cfg.jaw ? jawWeight(my) : 0,
+        jaw: cfg.jaw ? jawWeight(my, LAND) : 0,
         jit: Math.random() * 2 - 1,
       };
       p.rad = Math.hypot(p.x, p.y * 0.8);
@@ -455,19 +814,20 @@ function rebuildHero() {
   // User size folds into the authored per-model scale, so every derived
   // landmark (jaw pivot, eye anchors) has to use the combined value.
   const sc = cfg.scale * (CONFIG.scale / 100);
+  const L = landmarks(cfg);
   heroPoints = buildPoints(CONFIG.model, CONFIG.density / 100, {
-    scale: sc, offY: cfg.offY * sc, jaw: cfg.jaw,
+    scale: sc, offY: cfg.offY * sc, jaw: cfg.jaw, land: L,
   });
-  JAW_PIVOT_Y = 0.14 * sc + cfg.offY * sc;
-  JAW_PIVOT_Z = -0.20 * sc;
+  JAW_PIVOT_Y = L.pivotY * sc + cfg.offY * sc;
+  JAW_PIVOT_Z = L.pivotZ * sc;
   EYE_ANCHORS = [];
   if (cfg.eyes) {
     const M = decodeModel(CONFIG.model);
     EYE_ANCHORS = [-1, 1].map(side => {
-      const tx = side * 0.20;
-      let best = -9, bx = tx, by = HUMAN.eyeY, bz = 0;
+      const tx = side * L.eyeX;
+      let best = -9, bx = tx, by = L.eyeY, bz = 0;
       for (let i = 0; i < M.count; i++) {
-        if (Math.abs(M.X[i] - tx) > 0.05 || Math.abs(M.Y[i] - HUMAN.eyeY) > 0.035) continue;
+        if (Math.abs(M.X[i] - tx) > 0.05 || Math.abs(M.Y[i] - L.eyeY) > 0.035) continue;
         if (M.Z[i] > best) { best = M.Z[i]; bx = M.X[i]; by = M.Y[i]; bz = M.Z[i]; }
       }
       return { x: bx * sc, y: by * sc + cfg.offY * sc, z: bz * sc + 0.012 };
@@ -476,7 +836,13 @@ function rebuildHero() {
   sceneDirty = true;
 }
 function rebuildGlobe() {
-  globePoints = decodeModel('earth') ? buildPoints('earth', 0.85, { scale: 1, offY: 0, jaw: false, samples: 1 }) : [];
+  // The small instrument is no longer hardwired to the globe: any baked
+  // model can ride it. Falls back to earth if the chosen key has no data.
+  const key = decodeModel(CONFIG.globeModel) ? CONFIG.globeModel : 'earth';
+  const gm = GLOBE_MODELS[key] || GLOBE_MODELS.earth;
+  globePoints = decodeModel(key)
+    ? buildPoints(key, 0.85, { scale: gm.scale, offY: gm.offY, jaw: false, samples: 1 })
+    : [];
   sceneDirty = true;
 }
 
@@ -509,6 +875,16 @@ window.addEventListener('resize', resize);
 // The cursor is an event source, not an animation driver. When it stops,
 // the head returns to rest and then holds — no drift, no wander.
 const parallax = { x: 0, y: 0 };
+// Subject anchor: everything that has to sit on the model itself (the
+// raster, eyes, callouts, reticle, pathways) reads position through these
+// two, so the Position X/Y sliders move the whole assembly as one piece.
+// The projector floor pad deliberately does NOT use these — it has its
+// own independent X/Y/Z so it can be aligned separately from the bust.
+function heroCX() { return CX + parallax.x * 0.1 + (SMOOTH.modelX || 0); }
+function heroCY() { return CY + parallax.y * 0.1 + (SMOOTH.modelY || 0); }
+// Where the side panels may start — pushed down by drawHeader() when a
+// bigger Clock size needs more room, so raising it can't overlap them.
+let headerBottomY = 92;
 let mouseNX = 0, mouseNY = 0, lastRealMove = -Infinity;
 let mousePX = -1e4, mousePY = -1e4;
 window.addEventListener('mousemove', (e) => {
@@ -530,6 +906,7 @@ function maxYaw() { return CONFIG.mouseRange * Math.PI / 180; }
 function maxPitch() { return Math.min(85, CONFIG.mouseRange * 0.6) * Math.PI / 180; }
 const REST_EPS = 0.00025;
 let poseMoving = false;
+let spinYaw = 0;
 function updateLookAt() {
   const cfg = modelCfg();
   const hold = Math.max(0.2, CONFIG.holdTime) * 1000;
@@ -554,7 +931,12 @@ function updateLookAt() {
   poseMoving = Math.abs(targetYaw - headYaw) > REST_EPS || Math.abs(targetPitch - headPitch) > REST_EPS
     || Math.abs(tpx - parallax.x) > 0.02 || Math.abs(tpy - parallax.y) > 0.02;
   if (!poseMoving) { headYaw = targetYaw; headPitch = targetPitch; parallax.x = tpx; parallax.y = tpy; }
-  return headYaw + (cfg.yaw0 || 0);
+  // Turntable: added on top of the look-at rather than replacing it, so the
+  // subject still tracks the cursor while it revolves. Advanced in real
+  // time so the rate does not change with the frame rate.
+  if (CONFIG.modelSpin) spinYaw += (SMOOTH.modelSpinSpeed ?? 30) / 100 * 0.00016 * DT;
+  else spinYaw = 0;
+  return headYaw + (cfg.yaw0 || 0) + spinYaw;
 }
 function heroPitch() { return headPitch + (modelCfg().pitch0 || 0); }
 
@@ -584,6 +966,46 @@ if (window.wallpaperRegisterAudioListener) {
       targetSpectrum[i] = (a[i] + a[i + BINS]) / 2;
     }
   });
+}
+// Microphone path, for running this outside Wallpaper Engine. A browser
+// cannot tap the system output the way the host can, so the mic is the only
+// audio a standalone page can legitimately get, and it needs a click first
+// because permission prompts require a gesture. Feeds exactly the same
+// target arrays as the host stream, so everything downstream is unchanged.
+let micCtx = null, micAnalyser = null, micBuf = null;
+function micTick() {
+  if (!micAnalyser) return;
+  micAnalyser.getByteFrequencyData(micBuf);
+  const step = micBuf.length / BINS;
+  for (let i = 0; i < BINS; i++) {
+    let sum = 0;
+    const a = Math.floor(i * step), b = Math.floor((i + 1) * step);
+    for (let j = a; j < b; j++) sum += micBuf[j];
+    const v = sum / Math.max(1, b - a) / 255;
+    // The host stream is roughly 0..1 with headroom; scale the mic to sit
+    // in the same range so the existing gates and gains still apply.
+    targetSpectrum[i] = v * 0.9;
+    targetL[i] = targetSpectrum[i];
+    targetR[i] = targetSpectrum[i];
+  }
+  requestAnimationFrame(micTick);
+}
+function startMic() {
+  if (micCtx) return Promise.resolve(true);
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return Promise.resolve(false);
+  return navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+    micCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const srcNode = micCtx.createMediaStreamSource(stream);
+    micAnalyser = micCtx.createAnalyser();
+    micAnalyser.fftSize = 512;
+    micAnalyser.smoothingTimeConstant = 0.72;
+    micBuf = new Uint8Array(micAnalyser.frequencyBinCount);
+    srcNode.connect(micAnalyser);
+    audioLinked = true;
+    logEvent('> audio: microphone attached', 0.9);
+    requestAnimationFrame(micTick);
+    return true;
+  }).catch(() => { logEvent('> audio: microphone refused', 0.5); return false; });
 }
 // There is no simulated spectrum. The previous build synthesised one from
 // sines whenever no audio was present, which meant the entire HUD pumped on
@@ -1062,7 +1484,7 @@ function updateState() {
 // 2% — enough to say "projected", not enough to read as animation.
 function shimmerGain() {
   if (!CONFIG.shimmer) return 1;
-  const k = CONFIG.shimmerAmount / 100;
+  const k = SMOOTH.shimmerAmount / 100;
   return 1 + ((fbm(NOW * 0.00019) - 0.5) * 0.030 + (fbm(NOW * 0.0013 + 40) - 0.5) * 0.012) * k;
 }
 // A single scanline band that appears at a random height, at random
@@ -1138,7 +1560,31 @@ function blendPx(idx, r, g, b) {
 // main canvas, so the cached scene can be blitted at a shimmer-modulated
 // alpha without the black plate fading with it.
 function beginPixelFrame() { ensurePixelBuffer(); pxU32.fill(0x00000000); setTarget(pxU32, W, H); }
-function endPixelFrame() { sceneCtx.putImageData(pxData, 0, 0); }
+// The rasteriser accumulates emitted light: bright where the form faces the
+// key, dark where it turns away. A pencil does the exact opposite — it
+// leaves its heaviest graphite in the shadows and lets the paper itself be
+// the highlight. So on paper the buffer is re-read as coverage: luminance
+// is inverted into alpha and the colour is replaced wholesale by the
+// pigment. The floor term matters — without it lit areas drop to zero and
+// the silhouette dissolves instead of reading as a drawn edge.
+function inkifyBuffer(u32) {
+  const col = accentFor(theme().accent);
+  const r0 = col.r, g0 = col.g, b0 = col.b;
+  const strength = (CONFIG.inkStrength ?? 100) / 100;
+  for (let i = 0; i < u32.length; i++) {
+    const p = u32[i];
+    if (!(p & 0xFF000000)) continue;   // never touched: bare paper
+    const r = p & 255, g = (p >> 8) & 255, b = (p >> 16) & 255;
+    const lum = (r * 77 + g * 151 + b * 28) >> 8;
+    let a = (0.30 + 0.70 * (1 - lum / 255)) * strength * 255;
+    a = a > 255 ? 255 : (a < 0 ? 0 : a | 0);
+    u32[i] = (a << 24) | (b0 << 16) | (g0 << 8) | r0;
+  }
+}
+function endPixelFrame() {
+  if (isPaper()) inkifyBuffer(pxU32);
+  sceneCtx.putImageData(pxData, 0, 0);
+}
 // The globe re-rasters every rendered frame while the subject does not, so
 // it gets its own small buffer and its own composite.
 function renderGlobe(g) {
@@ -1146,6 +1592,7 @@ function renderGlobe(g) {
   gxU32.fill(0x00000000);
   setTarget(gxU32, gxW, gxH);
   rasterCloud(globePoints, gxW * 0.30, gxW / 2, gxH / 2, globeYaw, GLOBE_TILT, { gain: 0.74, key: 0.92, ca: 0.5 });
+  if (isPaper()) inkifyBuffer(gxU32);
   globeCtx.putImageData(gxData, 0, 0);
   setTarget(pxU32, W, H);
 }
@@ -1284,14 +1731,17 @@ function rasterCloud(pts, r0, ox, oy, yaw, pitch, opt) {
 function heroParams() {
   const cfg = modelCfg();
   const sensitivity = CONFIG.sensitivity / 100;
-  const mouthOpen = audioActive ? Math.max(0, Math.min(1, bassEnergy * 1.7 * sensitivity * (CONFIG.jawAmount / 100))) : 0;
+  // Onset (how loud the audio needs to be) is sensitivity's job; the
+  // opening angle itself is jawAmount's — decoupled so a low jawAmount
+  // still triggers on quiet audio, just barely opens.
+  const mouthOpen = audioActive ? Math.max(0, Math.min(1, bassEnergy * 1.7 * sensitivity)) : 0;
   return {
-    gain: (0.88 + beatEnergy * 0.3 + AI.brightness * 0.20) * (CONFIG.subjectBright / 100),
+    gain: (0.88 + beatEnergy * 0.3 + AI.brightness * 0.20) * (SMOOTH.subjectBright / 100),
     // The key light itself lifts when the hologram responds, so "the face
     // brightens" is a lighting change rather than a flat opacity bump.
-    key: (1 + AI.brightness * 0.42 + fx('refocus') * 0.12) * (CONFIG.keyAmount / 100),
-    rim: CONFIG.rimAmount / 100,
-    jawAngle: cfg.jaw ? mouthOpen * 0.20 : 0,
+    key: (1 + AI.brightness * 0.42 + fx('refocus') * 0.12) * (SMOOTH.keyAmount / 100),
+    rim: SMOOTH.rimAmount / 100,
+    jawAngle: cfg.jaw ? mouthOpen * 0.34 * (CONFIG.jawAmount / 100) : 0,
     scanY: CONFIG.scan ? scanPosition() : 99,
     jitAmp: audioActive ? trebleEnergy * 0.012 : 0,
     breathe: 0,
@@ -1308,7 +1758,7 @@ function heroSig(p, r0) {
     ripple.toFixed(3), CONFIG.theme, CONFIG.model, CONFIG.aberration ? 1 : 0, heroPoints.length].join('|');
 }
 function drawHero(r0, p) {
-  rasterCloud(heroPoints, r0, CX + parallax.x * 0.1, CY + parallax.y * 0.1, heroYaw, heroPitch(), p);
+  rasterCloud(heroPoints, r0, heroCX(), heroCY(), heroYaw, heroPitch(), p);
 }
 
 // ---------- Starfield (static, part of the cached scene) ----------
@@ -1316,9 +1766,36 @@ function drawHero(r0, p) {
 // it also made the scene dirty every frame, which killed any chance of
 // caching. The field is fixed now; the shimmer term on the blit gives it
 // all the life it needs.
-const stars = Array.from({ length: 130 }, () => ({
-  x: Math.random(), y: Math.random(), a: 0.15 + Math.random() * 0.5,
-}));
+let stars = [];
+function rebuildStars() {
+  const n = Math.round(130 * ((CONFIG.bgParticles ?? 100) / 100));
+  stars = Array.from({ length: n }, () => {
+    const ang = Math.random() * Math.PI * 2;
+    const sp = 0.008 + Math.random() * 0.02;
+    return {
+      x: Math.random(), y: Math.random(), a: 0.15 + Math.random() * 0.5,
+      vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, sp,
+    };
+  });
+  sceneDirty = true;
+}
+// Only 'static' (the original, cached-forever field) costs nothing — any
+// other style needs the scene re-rasterised every frame it's on, which is
+// the deliberate trade a moving background makes against this project's
+// idle-power design.
+function updateStars() {
+  const style = CONFIG.particleStyle || 'static';
+  if (style === 'static') return;
+  const dt = DT / 1000;
+  stars.forEach((s) => {
+    if (style === 'drift') { s.x += s.vx * dt; s.y += s.vy * dt; }
+    else if (style === 'rise') { s.y -= s.sp * dt; }
+    else if (style === 'fall') { s.y += s.sp * dt; }
+    if (s.x < 0) s.x += 1; else if (s.x > 1) s.x -= 1;
+    if (s.y < 0) s.y += 1; else if (s.y > 1) s.y -= 1;
+  });
+  sceneDirty = true;
+}
 function drawStars() {
   stars.forEach(s => {
     const a = s.a * 0.8;
@@ -1348,7 +1825,7 @@ function drawPackets() {
   if (!packets.length) return;
   const col = accentFor(theme().accent);
   ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalCompositeOperation = glowOp();
   for (let i = packets.length - 1; i >= 0; i--) {
     const p = packets[i];
     p.t += p.sp * DT / 1000;
@@ -1378,11 +1855,60 @@ function drawPackets() {
 // independently. Doing it with ctx.globalAlpha instead would cap at 1 and
 // make values above 100% impossible.
 let HUD_K = 1;
+// Two roles rather than two fonts: `mono` is every readout and label, where
+// digits must not shift width as they change; `display` is the few headline
+// items. Swapping the pair together is what keeps a set looking deliberate
+// instead of like two unrelated fonts sharing a screen.
+const FONT_STACKS = {
+  mono:    { name: 'Techno',  mono: "'Share Tech Mono', monospace",       display: 'Orbitron, sans-serif' },
+  display: { name: 'Display', mono: 'Orbitron, sans-serif',              display: 'Orbitron, sans-serif' },
+  system:  { name: 'System',  mono: "Consolas, 'SF Mono', monospace",     display: "'Segoe UI', system-ui, sans-serif" },
+  serif:   { name: 'Serif',   mono: "'Courier New', Courier, monospace",  display: "Georgia, 'Times New Roman', serif" },
+};
+function fontSet() { return FONT_STACKS[CONFIG.hudFont] || FONT_STACKS.mono; }
+function fontMono() { return fontSet().mono; }
+function fontDisplay() { return fontSet().display; }
 function acc(a) { return `rgba(${theme().accent}, ${Math.min(1, a * HUD_K)})`; }
 // Non-accent HUD ink (values, warnings, status greens) has to scale with
 // the same control, or raising panel brightness would lift only the chrome
 // and leave the numbers behind.
-function ink(a, rgb) { return 'rgba(' + (rgb || '226,247,255') + ',' + Math.min(1, a * HUD_K) + ')'; }
+// The default is a near-white, and the explicit colours passed in (status
+// greens, warning reds) are all chosen to glow. Every one of them is
+// invisible or garish on a lit sheet, so on paper they are darkened toward
+// pigment instead of being used raw.
+const darkCache = new Map();
+function darkenRGB(rgb) {
+  let v = darkCache.get(rgb);
+  if (v === undefined) {
+    const p = rgb.split(',').map(Number);
+    v = p.map((c) => Math.round(c * 0.42)).join(',');
+    darkCache.set(rgb, v);
+  }
+  return v;
+}
+// Text tint pulls the neutral HUD ink toward the accent. At 0 the readouts
+// stay neutral against coloured chrome; at 100 the whole panel becomes one
+// hue. Cached because this runs per string, several hundred times a frame.
+const tintCache = new Map();
+function tintToward(base, accent, amt) {
+  if (amt <= 0.001) return base;
+  const k = base + '|' + accent + '|' + amt.toFixed(2);
+  let v = tintCache.get(k);
+  if (v === undefined) {
+    const b = base.split(',').map(Number), a = accent.split(',').map(Number);
+    v = b.map((c, i) => Math.round(c + (a[i] - c) * amt)).join(',');
+    if (tintCache.size > 400) tintCache.clear();
+    tintCache.set(k, v);
+  }
+  return v;
+}
+function ink(a, rgb) {
+  let base;
+  if (isPaper()) base = rgb ? darkenRGB(rgb) : '40,36,32';
+  else base = rgb || '226,247,255';
+  base = tintToward(base, theme().accent, (SMOOTH.hudTextTint ?? 0) / 100);
+  return 'rgba(' + base + ',' + Math.min(1, a * HUD_K) + ')';
+}
 // Proximity response: panels near the cursor lift slightly. This is the
 // "nearby HUD elements respond" behaviour — it costs nothing when the
 // cursor is parked, because then it evaluates to zero everywhere.
@@ -1421,7 +1947,7 @@ function panel(x, y, w, h, label, sub, emph) {
     // belonged to — the main legibility problem in the old layout.
     ctx.fillStyle = acc(0.55 + e * 0.45);
     ctx.fillRect(x, y - 13, 2.5, 10);
-    ctx.font = "700 9.5px Orbitron, 'Share Tech Mono', monospace";
+    ctx.font = '700 9.5px ' + fontDisplay();
     ctx.fillStyle = ink(0.80 + e * 0.20);
     ctx.textAlign = 'left';
     ctx.fillText(label, x + 7, y - 5);
@@ -1434,7 +1960,7 @@ function panel(x, y, w, h, label, sub, emph) {
   if (sub) {
     // 0.34 was below the point where 8px type stays readable against the
     // deepened vignette — checked at 1:1, not scaled down.
-    ctx.font = "8px 'Share Tech Mono', monospace";
+    ctx.font = '8px ' + fontMono();
     ctx.fillStyle = acc(0.46 + e * 0.30);
     ctx.fillText(sub, x + 2, y + h + 11);
   }
@@ -1442,13 +1968,13 @@ function panel(x, y, w, h, label, sub, emph) {
 }
 // Horizontal meter for a real 0..1 value.
 function meter(x, y, w, h, frac, label, valueText, warn) {
-  ctx.font = "8.5px 'Share Tech Mono', monospace";
+  ctx.font = '8.5px ' + fontMono();
   ctx.textAlign = 'left';
   ctx.fillStyle = acc(0.40);
   ctx.fillText(label, x, y - 3);
   if (valueText) {
     ctx.textAlign = 'right';
-    ctx.font = "9.5px 'Share Tech Mono', monospace";
+    ctx.font = '9.5px ' + fontMono();
     ctx.fillStyle = warn ? ink(0.98, '255,150,130') : ink(0.92);
     ctx.fillText(valueText, x + w, y - 3);
     ctx.textAlign = 'left';
@@ -1520,7 +2046,7 @@ function balanceMeter(x, y, w, h) {
   const px = cx + audioBalance * (w / 2 - 2);
   ctx.fillStyle = acc(0.85);
   ctx.fillRect(px - 1.5, y + 1, 3, h - 2);
-  ctx.font = "7.5px 'Share Tech Mono', monospace";
+  ctx.font = '7.5px ' + fontMono();
   ctx.fillStyle = acc(0.35);
   ctx.textAlign = 'left'; ctx.fillText('L', x + 2, y + h - 2);
   ctx.textAlign = 'right'; ctx.fillText('R', x + w - 2, y + h - 2);
@@ -1558,17 +2084,17 @@ function rows(x, y, lineH, items) {
     const ry = y + i * lineH;
     const avail = r[3];
     ctx.textAlign = 'left';
-    ctx.font = "8.5px 'Share Tech Mono', monospace";
+    ctx.font = '8.5px ' + fontMono();
     const kw = ctx.measureText(r[0]).width;
     // Fit the value before drawing anything. A long value (PLATFORM
     // "Windows", a wide heap figure) previously ran straight into its own
     // label with no gap at all — it only shows up at 1:1.
     let val = String(r[1]);
-    ctx.font = "10px 'Share Tech Mono', monospace";
+    ctx.font = '10px ' + fontMono();
     let vw = ctx.measureText(val).width;
     const room = avail - kw - 8;
     if (vw > room) {
-      ctx.font = "8.5px 'Share Tech Mono', monospace";
+      ctx.font = '8.5px ' + fontMono();
       vw = ctx.measureText(val).width;
       while (val.length > 1 && vw > room) {
         val = val.slice(0, -1);
@@ -1578,10 +2104,10 @@ function rows(x, y, lineH, items) {
       vw = ctx.measureText(val).width;
     }
     ctx.fillStyle = acc(0.42);
-    ctx.font = "8.5px 'Share Tech Mono', monospace";
+    ctx.font = '8.5px ' + fontMono();
     ctx.fillText(r[0], x, ry);
     ctx.fillStyle = r[2] || ink(0.94);
-    ctx.font = (val === String(r[1]) && vw <= room) ? "10px 'Share Tech Mono', monospace" : "8.5px 'Share Tech Mono', monospace";
+    ctx.font = (val === String(r[1]) && vw <= room) ? '10px ' + fontMono() : '8.5px ' + fontMono();
     ctx.textAlign = 'right';
     ctx.fillText(val, x + avail, ry);
     // leader dots, drawn only in the gap that is actually empty
@@ -1600,7 +2126,7 @@ function drawLogPanel(x, y, w, h, emph) {
   panel(x, y, w, h, 'EVENT LOG', LOG.length ? 'REAL EVENTS' : 'NO EVENTS', emph);
   ctx.save();
   ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
-  ctx.font = "8.5px 'Share Tech Mono', monospace";
+  ctx.font = '8.5px ' + fontMono();
   ctx.textAlign = 'left';
   const lh = 12, maxLines = Math.floor((h - 8) / lh);
   const start = Math.max(0, LOG.length - maxLines);
@@ -1623,16 +2149,37 @@ function drawLogPanel(x, y, w, h, emph) {
 // Reticle. The arcs used to creep round on `t`; they now hold their
 // orientation and only swing during a refocus, then stop where they land.
 let reticleAngle = 0.30;
+// The ring keeps its own centre. It used to read heroCX/heroCY, which meant
+// nudging the subject with Position X/Y dragged the whole apparatus along
+// with it; they are separate objects and now move separately.
+function ringCX() { return CX + parallax.x * 0.1 + (SMOOTH.reticleX || 0); }
+function ringCY() { return CY + parallax.y * 0.1 + (SMOOTH.reticleY || 0); }
+// One free-running angle for every style, advanced in real time so the
+// speed is frame-rate independent. Events still add a kick on top.
+let ringPhase = 0;
 function drawReticle(r0) {
-  const cx = CX + parallax.x * 0.1, cy = CY + parallax.y * 0.1;
+  const cx = ringCX(), cy = ringCY();
   const focus = fx('refocus') + fx('respond') * 0.8;
-  reticleAngle += focus * 0.055 * DT / 16.7;
-  const r = r0 * 0.92 * (1 + beatEnergy * 0.03 + focus * 0.012);
+  const spin = (SMOOTH.reticleSpin ?? 35) / 100;
+  ringPhase += (spin * 0.00022 + focus * 0.0033) * DT;
+  reticleAngle = ringPhase;
+  const detail = (SMOOTH.reticleDetail ?? 100) / 100;
+  const r = r0 * 0.92 * ((SMOOTH.reticleScale ?? 100) / 100) * (1 + beatEnergy * 0.03 + focus * 0.012);
+  const style = CONFIG.reticleStyle || 'classic';
+  ctx.save();
+  if (style === 'vault') drawRingVault(cx, cy, r, focus, detail);
+  else if (style === 'orbital') drawRingOrbital(cx, cy, r, focus, detail);
+  else if (style === 'sonar') drawRingSonar(cx, cy, r, focus, detail);
+  else drawRingClassic(cx, cy, r, focus, detail);
+  ctx.restore();
+}
+// The original: four arcs, an outer ring, and cardinal ticks.
+function drawRingClassic(cx, cy, r, focus, detail) {
   ctx.strokeStyle = acc(0.26 + focus * 0.30);
   ctx.lineWidth = 1.1;
   const span = 0.62 + focus * 0.22;
   for (let k = 0; k < 4; k++) {
-    const a0 = k * Math.PI / 2 + reticleAngle;
+    const a0 = k * Math.PI / 2 + ringPhase;
     ctx.beginPath(); ctx.arc(cx, cy, r, a0, a0 + span); ctx.stroke();
   }
   ctx.strokeStyle = acc(0.16 + focus * 0.20);
@@ -1645,20 +2192,160 @@ function drawReticle(r0) {
     ctx.lineTo(cx + dx * (r * 1.13 + tick), cy + dy * (r * 1.13 + tick));
     ctx.stroke();
   });
+  // fine graduations, so the ring reads as an instrument rather than a circle
+  const n = Math.round(72 * detail);
+  ctx.strokeStyle = acc(0.14 + focus * 0.10);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 - ringPhase * 0.4;
+    const long = i % 6 === 0 ? 7 : 3;
+    const c0 = Math.cos(a), s0 = Math.sin(a);
+    ctx.beginPath();
+    ctx.moveTo(cx + c0 * r * 1.13, cy + s0 * r * 1.13);
+    ctx.lineTo(cx + c0 * (r * 1.13 + long), cy + s0 * (r * 1.13 + long));
+    ctx.stroke();
+  }
+}
+// Vault: concentric shutter rings, each a set of thick segments with gaps,
+// alternating direction and stepping inward. Reads as a blast door mid-cycle
+// and, because each ring is smaller and dimmer than the last, as a tunnel
+// receding behind the subject.
+function drawRingVault(cx, cy, r, focus, detail) {
+  const rings = Math.max(3, Math.round(7 * detail));
+  for (let k = 0; k < rings; k++) {
+    const t = k / rings;
+    const rr = r * (1.20 - t * 0.86);
+    const dir = k % 2 ? -1 : 1;
+    // Each ring further in lags the one outside it, which is what sells the
+    // depth: the eye reads the phase offset as distance.
+    const ph = ringPhase * dir * (1 + k * 0.22) + k * 0.5;
+    const segs = 6 + (k % 3);
+    const gap = 0.22 + 0.10 * Math.sin(ringPhase * 1.7 + k);
+    const span = (Math.PI * 2) / segs - gap;
+    const fade = (1 - t * 0.62) * (0.30 + focus * 0.34);
+    ctx.strokeStyle = acc(fade);
+    ctx.lineWidth = 2.6 - t * 1.5;
+    for (let s = 0; s < segs; s++) {
+      const a0 = ph + s * (Math.PI * 2) / segs;
+      ctx.beginPath(); ctx.arc(cx, cy, rr, a0, a0 + span); ctx.stroke();
+    }
+    // radial jamb at each segment start — the door's locking lugs
+    if (k < 3) {
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = acc(fade * 0.7);
+      for (let s = 0; s < segs; s++) {
+        const a0 = ph + s * (Math.PI * 2) / segs;
+        const c0 = Math.cos(a0), s0 = Math.sin(a0);
+        ctx.beginPath();
+        ctx.moveTo(cx + c0 * rr, cy + s0 * rr);
+        ctx.lineTo(cx + c0 * (rr * 0.90), cy + s0 * (rr * 0.90));
+        ctx.stroke();
+      }
+    }
+  }
+}
+// Orbital: inclined rings turning about different axes, drawn as ellipses
+// whose minor axis breathes with the phase — a gyroscope cage.
+function drawRingOrbital(cx, cy, r, focus, detail) {
+  const rings = Math.max(2, Math.round(5 * detail));
+  for (let k = 0; k < rings; k++) {
+    const t = k / Math.max(1, rings - 1);
+    const rr = r * (0.78 + t * 0.42);
+    const tilt = k * 0.7 + ringPhase * (0.35 + k * 0.12);
+    // A ring seen edge-on is a line; sweeping the minor axis through zero
+    // is what makes it read as a solid hoop turning in depth.
+    const minor = Math.abs(Math.cos(ringPhase * (0.8 + k * 0.26) + k)) * rr;
+    ctx.strokeStyle = acc((0.34 - t * 0.12) + focus * 0.26);
+    ctx.lineWidth = 1.4 - t * 0.5;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rr, Math.max(1.5, minor), tilt, 0, Math.PI * 2);
+    ctx.stroke();
+    // node riding each hoop, marking where it crosses its own axis
+    const na = ringPhase * (1.1 + k * 0.3);
+    const nx = cx + Math.cos(na) * rr * Math.cos(tilt) - Math.sin(na) * minor * Math.sin(tilt);
+    const ny = cy + Math.cos(na) * rr * Math.sin(tilt) + Math.sin(na) * minor * Math.cos(tilt);
+    ctx.fillStyle = acc(0.7 + focus * 0.3);
+    ctx.beginPath(); ctx.arc(nx, ny, 2.1, 0, Math.PI * 2); ctx.fill();
+  }
+}
+// Sonar: a swept beam with a decaying wake, plus range rings that expand
+// outward and fade. The sweep is the only element here that must move
+// continuously — that is the whole idea of the style.
+function drawRingSonar(cx, cy, r, focus, detail) {
+  const rings = Math.max(2, Math.round(4 * detail));
+  ctx.lineWidth = 1;
+  for (let k = 1; k <= rings; k++) {
+    // Each range ring rides its own slot of the phase, so they march
+    // outward in sequence rather than pulsing together.
+    const p = ((ringPhase * 0.5 + k / rings) % 1);
+    const rr = r * (0.30 + p * 0.95);
+    ctx.strokeStyle = acc((1 - p) * (0.26 + focus * 0.22));
+    ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.strokeStyle = acc(0.20 + focus * 0.20);
+  ctx.beginPath(); ctx.arc(cx, cy, r * 1.13, 0, Math.PI * 2); ctx.stroke();
+  // wake: a fan of lines trailing the sweep, each dimmer than the last
+  const sweep = ringPhase * 2.2;
+  const tail = Math.round(22 * detail);
+  for (let i = tail; i >= 0; i--) {
+    const a = sweep - i * 0.035;
+    const f = 1 - i / (tail + 1);
+    ctx.strokeStyle = acc(f * f * (0.42 + focus * 0.3));
+    ctx.lineWidth = i === 0 ? 1.8 : 1;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(a) * r * 1.13, cy + Math.sin(a) * r * 1.13);
+    ctx.stroke();
+  }
+  // cardinal ticks stay put, giving the sweep something to be measured against
+  ctx.strokeStyle = acc(0.36 + focus * 0.3);
+  ctx.lineWidth = 1.4;
+  [[0, -1], [0, 1], [-1, 0], [1, 0]].forEach(([dx, dy]) => {
+    ctx.beginPath();
+    ctx.moveTo(cx + dx * r * 1.13, cy + dy * r * 1.13);
+    ctx.lineTo(cx + dx * (r * 1.13 + 12), cy + dy * (r * 1.13 + 12));
+    ctx.stroke();
+  });
+}
+// Spectrum ring: the 64-bin analysis already computed for the side panel
+// meters, worn as a full circle of radial bars around the subject instead
+// of tucked in a small bar chart. Rests as a thin outline when silent —
+// same "reacts to real audio only" rule as the mouth and ripple.
+function drawAudioRing(r0) {
+  const cx = heroCX(), cy = heroCY();
+  const n = 72;
+  const rIn = r0 * 1.22;
+  const amt = (SMOOTH.audioRingAmount ?? 100) / 100;
+  const maxLen = r0 * 0.32 * amt;
+  const active = audioActive ? 1 : 0.10;
+  ctx.save();
+  ctx.globalCompositeOperation = glowOp();
+  ctx.lineWidth = 2;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+    const v = spectrum[Math.floor((i / n) * BINS)] || 0;
+    const len = (2 + v * maxLen) * active;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    ctx.strokeStyle = acc(0.10 + v * 0.55 * active + beatEnergy * 0.15);
+    ctx.beginPath();
+    ctx.moveTo(cx + ca * rIn, cy + sa * rIn);
+    ctx.lineTo(cx + ca * (rIn + len), cy + sa * (rIn + len));
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 // Data pathways: lines from the subject out to the columns, drawn only
 // while responding. They illuminate, carry the response outward, and go.
 function drawPathways(r0) {
   const a = AI.pathway;
   if (a < 0.02) return;
-  const cx = CX + parallax.x * 0.1, cy = CY + parallax.y * 0.1;
+  const cx = heroCX(), cy = heroCY();
   const pad = 30, colW = Math.min(232, W * 0.185);
   const targets = [
     { x: pad + colW, y: H * 0.30 }, { x: pad + colW, y: H * 0.62 },
     { x: W - pad - colW, y: H * 0.30 }, { x: W - pad - colW, y: H * 0.62 },
   ];
   ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalCompositeOperation = glowOp();
   ctx.lineWidth = 1;
   targets.forEach((tg, i) => {
     const reach = smoothstep(i * 0.06, 0.55 + i * 0.06, a);
@@ -1679,11 +2366,12 @@ function drawPathways(r0) {
 // when its value actually changes, and is otherwise perfectly still.
 const FIELD_STATE = new Map();
 function drawTicker() {
-  const y = H - 15;
-  ctx.font = "9.5px 'Share Tech Mono', monospace";
+  const y = H - 15 - SMOOTH.bottomMargin;
+  ctx.font = '9.5px ' + fontMono();
   ctx.textAlign = 'left';
   const fields = [
     ['SUBJ', modelCfg().id],
+    ['RES', W + 'x' + H + '@' + (window.devicePixelRatio || 1).toFixed(2) + 'x'],
     ['PTS', heroPoints.length.toLocaleString()],
     ['FPS', (SYS.fps || '--') + '/' + SYS.frameMs.toFixed(1) + 'MS'],
     ['GPU', ellipsize(String(SYS.gpu), 30)],
@@ -1720,12 +2408,12 @@ function drawTicker() {
     ctx.fillText('·', x - 12, y);
   }
   ctx.strokeStyle = acc(0.12);
-  ctx.beginPath(); ctx.moveTo(0, H - 26); ctx.lineTo(W, H - 26); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, H - 26 - SMOOTH.bottomMargin); ctx.lineTo(W, H - 26 - SMOOTH.bottomMargin); ctx.stroke();
 }
 function drawSpectrumBar() {
   const n = 56, totalW = Math.min(W * 0.42, 520);
   const x0 = (W - totalW) / 2, bw = totalW / n;
-  const y0 = H - 34;
+  const y0 = H - 34 - SMOOTH.bottomMargin;
   for (let i = 0; i < n; i++) {
     const v = spectrum[Math.floor(i / n * BINS)] || 0;
     const h = 2 + v * 22;
@@ -1734,28 +2422,41 @@ function drawSpectrumBar() {
   }
 }
 function drawHeader() {
-  ctx.font = "700 15px Orbitron, sans-serif";
+  ctx.font = '700 15px ' + fontDisplay();
   ctx.fillStyle = acc(0.85);
   ctx.textAlign = 'left';
   ctx.fillText('HOLO // NEXUS', 34, 44);
-  ctx.font = "8.5px 'Share Tech Mono', monospace";
+  ctx.font = '8.5px ' + fontMono();
   ctx.fillStyle = acc(0.38);
   ctx.fillText('VOLUMETRIC POINT-CLOUD INTERFACE', 34, 58);
 
+  // Clock/calendar: the one thing this HUD needs to actually work at a
+  // glance across a desktop, so it gets real size and contrast rather
+  // than sharing a debug line's 8.5px/0.38-opacity treatment.
   const now = new Date();
-  ctx.textAlign = 'right';
-  ctx.font = "13px 'Share Tech Mono', monospace";
-  ctx.fillStyle = acc(0.75);
-  ctx.fillText(now.toLocaleTimeString('en-US', { hour12: false }), W - 34, 44);
-  ctx.font = "8.5px 'Share Tech Mono', monospace";
-  ctx.fillStyle = acc(0.38);
+  const cs = (SMOOTH.clockScale || 100) / 100;
+  const pos = CONFIG.clockPos || 'right';
+  const align = pos === 'center' ? 'center' : (pos === 'left' ? 'left' : 'right');
+  const anchorX = pos === 'center' ? W / 2 : (pos === 'left' ? 34 : W - 34);
+  const cxp = anchorX + (SMOOTH.clockX || 0);
+  const cyp = (SMOOTH.clockY || 0);
+  ctx.textAlign = align;
+  ctx.font = '700 ' + Math.round(28 * cs) + 'px ' + fontDisplay();
+  ctx.fillStyle = acc(0.94);
+  const timeY = 26 + Math.round(28 * cs) * 0.86 + cyp;
+  ctx.fillText(now.toLocaleTimeString('en-US', { hour12: false }), cxp, timeY);
+  ctx.font = Math.round(11.5 * cs) + 'px ' + fontMono();
+  ctx.fillStyle = acc(0.66);
   const tz = -now.getTimezoneOffset() / 60;
-  ctx.fillText(now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: '2-digit' }).toUpperCase()
-    + '  UTC' + (tz >= 0 ? '+' : '') + tz
-    + '  ·  ' + W + '×' + H + '@' + (window.devicePixelRatio || 1).toFixed(2) + 'x'
-    + '  ·  AUDIO ' + (audioActive ? 'LIVE' : audioLinked ? 'SILENT' : 'NO LINK')
-    + '  ·  ' + STATE_LABEL[AI.state], W - 34, 58);
+  ctx.fillText(now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: '2-digit', year: 'numeric' }).toUpperCase()
+    + '  ·  UTC' + (tz >= 0 ? '+' : '') + tz, cxp, timeY + Math.round(15 * cs));
   ctx.textAlign = 'left';
+  // A bigger clock needs more clearance before the side panels start, or
+  // it overlaps them at high Clock size — this is read by drawHUD so both
+  // columns push down together instead of the clock just sitting on top.
+  // A centred clock sits over the subject, not over the side columns, so it
+  // must not push them down the way the right-aligned one has to.
+  headerBottomY = pos === 'center' ? 92 : Math.max(92, timeY + Math.round(15 * cs) + 26);
 }
 function drawCornerBrackets() {
   const m = 20, s = 34;
@@ -1771,9 +2472,9 @@ function drawCornerBrackets() {
 // waveform, and the current state. All three fade in on a transition and
 // fade out again — at idle this area is empty except for a single dim dot.
 function drawAttentionState(r0) {
-  const cx = CX + parallax.x * 0.1;
-  const y = Math.min(H - 92, CY + r0 * 0.86);
-  PACKET_TARGETS.hero = { x0: cx, y0: y, x1: cx, y1: CY };
+  const cx = heroCX();
+  const y = Math.min(H - 92, heroCY() + r0 * 0.86);
+  PACKET_TARGETS.hero = { x0: cx, y0: y, x1: cx, y1: heroCY() };
   const listening = AI.state === 'LISTENING' ? 1 : 0;
   const responding = AI.state === 'RESPONDING' ? 1 : 0;
   const show = Math.max(listening, responding, fx('listen-in'), fx('respond'), AI.brightness);
@@ -1786,7 +2487,7 @@ function drawAttentionState(r0) {
     return;
   }
   const label = responding ? 'RESPONDING' : listening ? 'LISTENING' : STATE_LABEL[AI.state];
-  ctx.font = "9.5px 'Share Tech Mono', monospace";
+  ctx.font = '9.5px ' + fontMono();
   ctx.fillStyle = acc(0.30 + show * 0.55);
   ctx.fillText(label, cx, y + 4);
   // The indicator dot brightens with actual signal level rather than
@@ -1807,12 +2508,13 @@ function pushHist(a, v, n) { a.push(v); if (a.length > n) a.shift(); }
 
 function drawHUD(r0) {
   // Single source of truth for the column geometry, shared with globeRect().
-  const { pad, colW, left, right } = hudLayout();
+  const { pad, colW, left, right, leftY, rightY } = hudLayout();
   const small = W < 1180 || H < 640;
 
   drawHeader();
   drawCornerBrackets();
-  drawReticle(r0);
+  // The ring and the spectrum ring are the apparatus the subject stands
+  // inside, so they are drawn before the subject in frame(), not here.
   drawPathways(r0);
   drawAttentionState(r0);
   drawTicker();
@@ -1821,7 +2523,7 @@ function drawHUD(r0) {
   const ix = 8, iw = colW - 16;
 
   // ================= LEFT: machine state =================
-  let y = 92;
+  let y = headerBottomY + leftY;
 
   // --- RENDER ENGINE (measured) ---
   panel(left, y, colW, 98, 'RENDER ENGINE', CONFIG.idlePower ? 'MEASURED · IDLE THROTTLE' : 'MEASURED', fx('panel-render'));
@@ -1842,7 +2544,7 @@ function drawHUD(r0) {
 
   // --- GPU (real device string) ---
   panel(left, y, colW, 76, 'GRAPHICS DEVICE', 'WEBGL / REAL', 0);
-  ctx.font = "8.5px 'Share Tech Mono', monospace";
+  ctx.font = '8.5px ' + fontMono();
   ctx.fillStyle = ink(0.80, '210,240,255');
   wrapText(SYS.gpu, left + ix, y + 15, iw, 11, 3);
   ctx.fillStyle = acc(0.40);
@@ -1871,7 +2573,7 @@ function drawHUD(r0) {
     meter(left + ix, y + 14, iw, 9, SYS.heapUsed / SYS.heapLimit, 'JS HEAP',
       fmtBytes(SYS.heapUsed) + '/' + fmtBytes(SYS.heapLimit), SYS.heapUsed / SYS.heapLimit > 0.8);
   } else {
-    ctx.font = "8.5px 'Share Tech Mono', monospace";
+    ctx.font = '8.5px ' + fontMono();
     ctx.fillStyle = acc(0.35);
     ctx.fillText('HEAP API UNAVAILABLE', left + ix, y + 20);
   }
@@ -1881,14 +2583,14 @@ function drawHUD(r0) {
   y += 78 + 34;
 
   // --- EVENT LOG (only real events, no filler) ---
-  const logH = Math.min(150, H - 60 - y);
+  const logH = Math.min(150, H - 60 - SMOOTH.bottomMargin - y);
   if (logH > 60) drawLogPanel(left, y, colW, logH, fx('notify') * 0.6);
 
   // ================= RIGHT: subject + signal =================
-  y = 92;
+  y = headerBottomY + rightY;
   const cfg = modelCfg();
   panel(right, y, colW, 84, 'TARGET LOCK', 'SUBJECT PROFILE', fx('refocus') * 0.7);
-  ctx.font = "10px 'Share Tech Mono', monospace";
+  ctx.font = '10px ' + fontMono();
   ctx.fillStyle = acc(0.82);
   ctx.fillText(cfg.label, right + ix, y + 16);
   rows(right + ix, y + 34, 13, [
@@ -1917,18 +2619,18 @@ function drawHUD(r0) {
 
   // --- MEDIA SESSION (title/artist from the host, not from the spectrum) ---
   const mediaH = 84;
-  if (y + mediaH < H - 70) {
+  if (y + mediaH < H - 70 - SMOOTH.bottomMargin) {
     const sub = !MEDIA.available ? 'NO HOST BRIDGE'
       : (mediaHasTrack() ? 'WINDOWS SMTC · ' + MEDIA.state.toUpperCase() : 'NO MEDIA SESSION');
     panel(right, y, colW, mediaH, 'NOW PLAYING', sub, fx('panel-media'));
     if (mediaHasTrack()) {
       // Title wraps to two lines instead of scrolling — a marquee would be
       // exactly the kind of loop this build exists to avoid.
-      ctx.font = "10px 'Share Tech Mono', monospace";
+      ctx.font = '10px ' + fontMono();
       ctx.fillStyle = ink(0.96, '232,250,255');
       ctx.textAlign = 'left';
       wrapText(MEDIA.title, right + ix, y + 15, iw, 12, 2);
-      ctx.font = "8.5px 'Share Tech Mono', monospace";
+      ctx.font = '8.5px ' + fontMono();
       ctx.fillStyle = acc(0.62);
       ctx.fillText(ellipsize(MEDIA.artist || MEDIA.album || '—', 30), right + ix, y + 45);
       // transport state + elapsed/total
@@ -1938,7 +2640,7 @@ function drawHUD(r0) {
         : (MEDIA.state === 'playing' ? 'LIVE' : '—');
       meter(right + ix, y + 60, iw, 7, pos, MEDIA.state === 'playing' ? '▶ PLAYING' : (MEDIA.state === 'paused' ? '❚❚ PAUSED' : '■ STOPPED'), tl);
     } else {
-      ctx.font = "8.5px 'Share Tech Mono', monospace";
+      ctx.font = '8.5px ' + fontMono();
       ctx.fillStyle = acc(0.34);
       ctx.textAlign = 'left';
       wrapText(MEDIA.available
@@ -1950,7 +2652,7 @@ function drawHUD(r0) {
   }
 
   // --- SIGNAL STATS ---
-  if (y + 74 > H - 60) { drawSpectrumBar(); return; }
+  if (y + 74 > H - 60 - SMOOTH.bottomMargin) { drawSpectrumBar(); return; }
   panel(right, y, colW, 74, 'SIGNAL', 'DERIVED', 0);
   rows(right + ix, y + 15, 13, [
     ['RMS', audioRMS.toFixed(3), null, iw],
@@ -1968,7 +2670,7 @@ function drawHUD(r0) {
     meter(right + ix, y + 14, iw, 9, b.level, b.charging ? 'BATTERY (CHG)' : 'BATTERY',
       (b.level * 100).toFixed(0) + '%', !b.charging && b.level < 0.2);
   } else {
-    ctx.font = "8.5px 'Share Tech Mono', monospace";
+    ctx.font = '8.5px ' + fontMono();
     ctx.fillStyle = acc(0.35);
     ctx.fillText('NO BATTERY DEVICE', right + ix, y + 20);
   }
@@ -1999,8 +2701,14 @@ function wrapText(text, x, y, maxW, lineH, maxLines) {
 // supposed to frame it. It now derives from the same layout the HUD uses.
 function hudLayout() {
   const pad = 30;
-  const colW = Math.min(232, W * 0.185);
-  return { pad, colW, left: pad, right: W - pad - colW };
+  const colW = Math.min(232, W * 0.185) * ((SMOOTH.hudColW ?? 100) / 100);
+  return {
+    pad, colW,
+    left: pad + (SMOOTH.hudLeftX || 0),
+    right: W - pad - colW + (SMOOTH.hudRightX || 0),
+    leftY: (SMOOTH.hudLeftY || 0),
+    rightY: (SMOOTH.hudRightY || 0),
+  };
 }
 function globeRect() {
   const L = hudLayout();
@@ -2016,7 +2724,7 @@ function drawGlobeLayer(g) {
   const cx = g.x + g.w / 2, cy = g.y + g.h / 2;
   const R = g.w * 0.30;
   ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalCompositeOperation = glowOp();
   ctx.drawImage(globeCanvas, g.x | 0, g.y | 0);
 
   // limb glow: atmosphere at the edge of the sphere
@@ -2047,7 +2755,7 @@ function drawGlobeLayer(g) {
   ctx.beginPath(); ctx.ellipse(cx, cy, R, R * Math.abs(Math.sin(GLOBE_TILT)) + 1, 0, 0, Math.PI * 2); ctx.stroke();
   ctx.beginPath(); ctx.ellipse(cx, cy, Math.abs(Math.cos(globeYaw)) * R + 0.5, R, 0, 0, Math.PI * 2); ctx.stroke();
   // heading readout
-  ctx.font = "7.5px 'Share Tech Mono', monospace";
+  ctx.font = '7.5px ' + fontMono();
   ctx.fillStyle = acc(0.42);
   ctx.textAlign = 'center';
   ctx.fillText('MER ' + ((globeYaw * 180 / Math.PI) | 0).toString().padStart(3, '0') + '°', cx, g.y + g.h - 2);
@@ -2065,8 +2773,8 @@ function projectPoint(lx, ly, lz, r0) {
   const y2 = ly * cp - z1 * sp, z2 = ly * sp + z1 * cp;
   const persp = FOCAL / (FOCAL - z2);
   return {
-    x: CX + parallax.x * 0.1 + x1 * r0 * persp,
-    y: CY + parallax.y * 0.1 - y2 * r0 * persp,
+    x: heroCX() + x1 * r0 * persp,
+    y: heroCY() - y2 * r0 * persp,
     z: z2, persp,
   };
 }
@@ -2078,57 +2786,66 @@ function projectPoint(lx, ly, lz, r0) {
 // just drawn — without a floor contact the bust reads as a sticker.
 function drawProjector(r0) {
   if (!CONFIG.projector) return;
-  const cx = CX + parallax.x * 0.1;
-  const baseY = CY + r0 * 0.92;
+  const depth = (SMOOTH.projectorZ ?? 100) / 100;
+  const cx = CX + parallax.x * 0.1 + (SMOOTH.projectorX || 0);
+  const baseY = CY + r0 * 0.92 + (SMOOTH.projectorY || 0);
   const lift = 0.55 + AI.brightness * 0.45 + fx('refocus') * 0.20;
-  const rx = r0 * 0.72, ry = r0 * 0.115;
+  // Emitter: a small aperture on the floor, not a wide pool — this is the
+  // "tiny hole" the beam actually originates from.
+  const rxE = r0 * 0.085 * depth, ryE = r0 * 0.016 * depth;
+  // The beam widens as it rises, flaring out to roughly the subject's own
+  // width by the time it reaches shoulder height — the opposite taper from
+  // before, which had the floor as the wide end and the beam narrowing
+  // going up, backwards from how a real projector reads.
+  const topY = baseY - r0 * 1.15 * depth;
+  const rxTop = r0 * 0.62 * depth;
 
   ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalCompositeOperation = glowOp();
 
-  // volume cone: narrow at the shoulders, wide at the floor
-  const cone = ctx.createLinearGradient(0, baseY - r0 * 1.15, 0, baseY);
-  cone.addColorStop(0, acc(0));
-  cone.addColorStop(0.55, acc(0.020 * lift));
-  cone.addColorStop(1, acc(0.075 * lift));
+  // volume cone: tiny at the floor emitter, flared open by the top
+  const cone = ctx.createLinearGradient(0, topY, 0, baseY);
+  cone.addColorStop(0, acc(0.010 * lift));
+  cone.addColorStop(0.55, acc(0.018 * lift));
+  cone.addColorStop(1, acc(0.09 * lift));
   ctx.fillStyle = cone;
   ctx.beginPath();
-  ctx.moveTo(cx - r0 * 0.20, baseY - r0 * 1.15);
-  ctx.lineTo(cx + r0 * 0.20, baseY - r0 * 1.15);
-  ctx.lineTo(cx + rx, baseY);
-  ctx.lineTo(cx - rx, baseY);
+  ctx.moveTo(cx - rxE, baseY);
+  ctx.lineTo(cx + rxE, baseY);
+  ctx.lineTo(cx + rxTop, topY);
+  ctx.lineTo(cx - rxTop, topY);
   ctx.closePath();
   ctx.fill();
 
-  // floor pool
+  // floor glow, sized to the tiny emitter rather than a wide pool
   ctx.save();
-  ctx.translate(cx, baseY); ctx.scale(1, ry / rx); ctx.translate(-cx, -baseY);
-  const pool = ctx.createRadialGradient(cx, baseY, 0, cx, baseY, rx);
-  pool.addColorStop(0, acc(0.30 * lift));
-  pool.addColorStop(0.30, acc(0.11 * lift));
-  pool.addColorStop(0.72, acc(0.028 * lift));
+  ctx.translate(cx, baseY); ctx.scale(1, ryE / rxE); ctx.translate(-cx, -baseY);
+  const pool = ctx.createRadialGradient(cx, baseY, 0, cx, baseY, rxE * 2.4);
+  pool.addColorStop(0, acc(0.55 * lift));
+  pool.addColorStop(0.30, acc(0.24 * lift));
+  pool.addColorStop(0.72, acc(0.06 * lift));
   pool.addColorStop(1, acc(0));
   ctx.fillStyle = pool;
-  ctx.beginPath(); ctx.arc(cx, baseY, rx, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, baseY, rxE * 2.4, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 
-  // emitter rings — the pad the projection stands on
+  // emitter rings — the small pad the beam actually originates from
   ctx.lineWidth = 1;
   [0.42, 0.68, 1.0].forEach((f, i) => {
-    ctx.strokeStyle = acc((0.20 - i * 0.05) * lift);
+    ctx.strokeStyle = acc((0.32 - i * 0.06) * lift);
     ctx.beginPath();
-    ctx.ellipse(cx, baseY, rx * f, ry * f, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, baseY, rxE * f, ryE * f, 0, 0, Math.PI * 2);
     ctx.stroke();
   });
   // tick marks around the outer ring, so it reads as an instrument
-  ctx.strokeStyle = acc(0.24 * lift);
+  ctx.strokeStyle = acc(0.36 * lift);
   for (let i = 0; i < 24; i++) {
     const a = (i / 24) * Math.PI * 2;
     const c0 = Math.cos(a), s0 = Math.sin(a);
-    const long = i % 6 === 0 ? 8 : 4;
+    const long = i % 6 === 0 ? 6 : 3;
     ctx.beginPath();
-    ctx.moveTo(cx + c0 * rx, baseY + s0 * ry);
-    ctx.lineTo(cx + c0 * (rx + long), baseY + s0 * (ry + long * ry / rx));
+    ctx.moveTo(cx + c0 * rxE, baseY + s0 * ryE);
+    ctx.lineTo(cx + c0 * (rxE + long), baseY + s0 * (ryE + long * ryE / rxE));
     ctx.stroke();
   }
   ctx.restore();
@@ -2141,13 +2858,14 @@ function drawProjector(r0) {
 function calloutPoints() {
   const cfg = modelCfg();
   const s = cfg.scale, oy = cfg.offY * cfg.scale;
+  const L = landmarks(cfg);
   if (cfg.eyes) {
     return [
-      { x: -0.20, y: HUMAN.eyeY * s + oy, z: 0.30, side: -1, label: 'OCULAR L', val: 'TRACK' },
-      { x: 0.20, y: HUMAN.eyeY * s + oy, z: 0.30, side: 1, label: 'OCULAR R', val: 'TRACK' },
-      { x: 0.02, y: HUMAN.noseY * s + oy, z: 0.42, side: 1, label: 'NASAL', val: 'REF' },
-      { x: -0.05, y: HUMAN.mouthY * s + oy, z: 0.34, side: -1, label: 'ORAL', val: null },
-      { x: 0.06, y: HUMAN.chinY * s + oy, z: 0.28, side: 1, label: 'MANDIBLE', val: null },
+      { x: -L.eyeX, y: L.eyeY * s + oy, z: 0.30, side: -1, label: 'OCULAR L', val: 'TRACK' },
+      { x: L.eyeX, y: L.eyeY * s + oy, z: 0.30, side: 1, label: 'OCULAR R', val: 'TRACK' },
+      { x: 0.02, y: L.noseY * s + oy, z: 0.42, side: 1, label: 'NASAL', val: 'REF' },
+      { x: -0.05, y: L.mouthY * s + oy, z: 0.34, side: -1, label: 'ORAL', val: null },
+      { x: 0.06, y: L.chinY * s + oy, z: 0.28, side: 1, label: 'MANDIBLE', val: null },
     ];
   }
   return [
@@ -2162,7 +2880,7 @@ function drawCallouts(r0) {
   if (a < 0.03) return;
   const pts = calloutPoints();
   ctx.save();
-  ctx.font = "8px 'Share Tech Mono', monospace";
+  ctx.font = '8px ' + fontMono();
   ctx.lineWidth = 1;
   pts.forEach((p, i) => {
     // staggered reveal, so they arrive as a sequence rather than a flash
@@ -2230,19 +2948,19 @@ function drawEyeGlow(r0) {
   const mny = (mp_ > 1e-6 ? -headPitch / mp_ : 0) + saccadeY;
   // Eyes stay softly lit at rest and brighten only when the hologram is
   // actually doing something. No pulsing, no idle throb.
-  const glow = (0.70 + beatEnergy * 0.5 + AI.brightness * 0.55) * open;
+  const glow = (0.70 + beatEnergy * 0.5 + AI.brightness * 0.55) * open * (SMOOTH.eyeGlowAmount / 100);
   const focus = fx('refocus') + fx('respond') * 0.7;
   const cy = Math.cos(heroYaw), sy = Math.sin(heroYaw);
   const cp = Math.cos(heroPitch()), sp = Math.sin(heroPitch());
   ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalCompositeOperation = glowOp();
   EYE_ANCHORS.forEach((base) => {
     const lx = base.x + mnx * 0.026, ly = base.y - mny * 0.020, lz = base.z;
     const x1 = lx * cy + lz * sy, z1 = -lx * sy + lz * cy;
     const y2 = ly * cp - z1 * sp, z2 = ly * sp + z1 * cp;
     const persp = FOCAL / (FOCAL - z2);
-    const sx = CX + parallax.x * 0.1 + x1 * r0 * persp;
-    const syy = CY + parallax.y * 0.1 - y2 * r0 * persp;
+    const sx = heroCX() + x1 * r0 * persp;
+    const syy = heroCY() - y2 * r0 * persp;
     // The lid aperture. Everything below is squashed into this ratio, so a
     // blink closes the whole assembly rather than just dimming it.
     const w = r0 * 0.118 * persp * (1 + focus * 0.10);
@@ -2272,9 +2990,9 @@ function drawEyeGlow(r0) {
     // core — small and genuinely white, which is what makes it read hot
     const coreR = w * 0.13;
     const core = ctx.createRadialGradient(sx, syy, 0, sx, syy, coreR);
-    core.addColorStop(0, `rgba(255,255,255,${Math.min(1, 1.0 * glow)})`);
-    core.addColorStop(0.55, `rgba(255,255,255,${Math.min(1, 0.55 * glow)})`);
-    core.addColorStop(1, 'rgba(255,255,255,0)');
+    core.addColorStop(0, hot(1.0 * glow));
+    core.addColorStop(0.55, hot(0.55 * glow));
+    core.addColorStop(1, hot(0));
     ctx.fillStyle = core;
     ctx.beginPath(); ctx.arc(sx, syy, coreR, 0, Math.PI * 2); ctx.fill();
 
@@ -2282,8 +3000,8 @@ function drawEyeGlow(r0) {
     const cxr = sx - w * 0.11, cyr = syy - w * 0.06;
     const catchR = w * 0.05;
     const cg2 = ctx.createRadialGradient(cxr, cyr, 0, cxr, cyr, catchR);
-    cg2.addColorStop(0, `rgba(255,255,255,${Math.min(1, 0.85 * glow)})`);
-    cg2.addColorStop(1, 'rgba(255,255,255,0)');
+    cg2.addColorStop(0, hot(0.85 * glow));
+    cg2.addColorStop(1, hot(0));
     ctx.fillStyle = cg2;
     ctx.beginPath(); ctx.arc(cxr, cyr, catchR, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
@@ -2295,7 +3013,7 @@ function drawEyeGlow(r0) {
       const streak = ctx.createLinearGradient(sx - fw, 0, sx + fw, 0);
       streak.addColorStop(0, acc(0));
       streak.addColorStop(0.34, acc(0.10 * fl));
-      streak.addColorStop(0.5, `rgba(255,255,255,${Math.min(1, 0.62 * fl)})`);
+      streak.addColorStop(0.5, hot(0.62 * fl));
       streak.addColorStop(0.66, acc(0.10 * fl));
       streak.addColorStop(1, acc(0));
       ctx.fillStyle = streak;
@@ -2311,7 +3029,7 @@ function drawEyeGlow(r0) {
     }
     // Focus ring: a hairline circle that snaps in when the gaze re-acquires.
     if (focus > 0.04) {
-      ctx.strokeStyle = `rgba(255,255,255,${0.30 * focus * open})`;
+      ctx.strokeStyle = hot(0.30 * focus * open);
       ctx.lineWidth = 0.8;
       ctx.beginPath();
       ctx.ellipse(sx, syy, w * (1.15 - focus * 0.28), Math.max(0.6, h * 1.6), 0, 0, Math.PI * 2);
@@ -2327,17 +3045,19 @@ function drawEyeGlow(r0) {
 // random, there is no interval for the eye to learn.
 let glitchFrames = 0;
 function maybeGlitch() {
+  const freqMul = (CONFIG.glitchFreq ?? 100) / 100;
+  const sizeMul = (CONFIG.glitchSize ?? 100) / 100;
   if (glitchFrames <= 0) {
-    const rate = 0.035 + (beatEnergy > 0.42 ? 1.4 : 0) + fx('respond') * 0.9 + fx('notify') * 0.6;
-    if (chance(rate, DT)) glitchFrames = 2 + (Math.random() * 3 | 0);
+    const rate = (0.035 + (beatEnergy > 0.42 ? 1.4 : 0) + fx('respond') * 0.9 + fx('notify') * 0.6) * freqMul;
+    if (chance(rate, DT)) glitchFrames = Math.round((2 + (Math.random() * 3 | 0)) * freqMul);
   }
   if (glitchFrames <= 0) return;
   glitchFrames--;
-  const slices = 3 + (Math.random() * 3 | 0);
+  const slices = Math.max(1, Math.round((3 + (Math.random() * 3 | 0)) * freqMul));
   for (let i = 0; i < slices; i++) {
-    const sh = 6 + Math.random() * 34;
-    const sy = Math.random() * (H - sh);
-    ctx.drawImage(canvas, 0, sy, W, sh, (Math.random() - 0.5) * 46, sy, W, sh);
+    const sh = Math.min(H, (6 + Math.random() * 34) * sizeMul);
+    const sy = Math.random() * Math.max(1, H - sh);
+    ctx.drawImage(canvas, 0, sy, W, sh, (Math.random() - 0.5) * 46 * sizeMul, sy, W, sh);
   }
 }
 function drawBloom() {
@@ -2345,8 +3065,8 @@ function drawBloom() {
   glowCtx.clearRect(0, 0, gw, gh);
   glowCtx.drawImage(canvas, 0, 0, gw, gh);
   ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = Math.min(1, (0.40 + beatEnergy * 0.28) * (CONFIG.bloomAmount / 100));
+  ctx.globalCompositeOperation = glowOp();
+  ctx.globalAlpha = Math.min(1, (0.40 + beatEnergy * 0.28) * (SMOOTH.bloomAmount / 100));
   ctx.filter = 'blur(3px)';
   ctx.drawImage(glowCanvas, 0, 0, W, H);
   ctx.restore();
@@ -2356,6 +3076,45 @@ function drawBloom() {
 const gear = document.getElementById('gear');
 const settingsEl = document.getElementById('settings');
 gear.addEventListener('click', () => settingsEl.classList.toggle('on'));
+// Draggable so the panel can be pulled off the subject/HUD it's covering
+// and the adjustment previewed live instead of guessed at blind.
+(function makeSettingsDraggable() {
+  const handle = document.getElementById('drag-handle');
+  let dragging = false, sx = 0, sy = 0, ox = 0, oy = 0;
+  function loadPos() {
+    let p = null;
+    try { p = JSON.parse(localStorage.getItem('holoNexusPanelPos')); } catch (e) {}
+    if (p && typeof p.x === 'number' && typeof p.y === 'number') {
+      settingsEl.style.left = p.x + 'px';
+      settingsEl.style.top = p.y + 'px';
+      settingsEl.style.transform = 'none';
+    }
+  }
+  handle.addEventListener('mousedown', (e) => {
+    dragging = true;
+    const r = settingsEl.getBoundingClientRect();
+    sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top;
+    settingsEl.style.transform = 'none';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const nx = Math.max(0, Math.min(window.innerWidth - 40, ox + (e.clientX - sx)));
+    const ny = Math.max(0, Math.min(window.innerHeight - 40, oy + (e.clientY - sy)));
+    settingsEl.style.left = nx + 'px';
+    settingsEl.style.top = ny + 'px';
+  });
+  window.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    try {
+      localStorage.setItem('holoNexusPanelPos', JSON.stringify({
+        x: parseFloat(settingsEl.style.left), y: parseFloat(settingsEl.style.top),
+      }));
+    } catch (e) {}
+  });
+  loadPos();
+})();
 function renderModelRow() {
   const row = document.getElementById('model-row');
   row.innerHTML = '';
@@ -2370,6 +3129,129 @@ function renderModelRow() {
     row.appendChild(b);
   });
 }
+function renderBgRow() {
+  const row = document.getElementById('bg-row');
+  row.innerHTML = '';
+  Object.entries(BG_STYLES).forEach(([key, b]) => {
+    const el = document.createElement('div');
+    el.className = 'model-btn' + (CONFIG.bgStyle === key ? ' active' : '');
+    el.textContent = b.name;
+    el.addEventListener('click', () => {
+      CONFIG.bgStyle = key; saveConfig(); applyDomSettings(); renderBgRow(); renderPaperRows();
+      // Entering or leaving paper flips the subject between emitted light
+      // and pigment, so the cached point layer has to be re-rasterised.
+      sceneDirty = true; lastRenderAt = 0;
+    });
+    row.appendChild(el);
+  });
+}
+// Small generic picker: a row of buttons bound to one CONFIG key. The ring
+// style, font set and clock anchor are all the same interaction, so they
+// share one implementation instead of three near-identical copies.
+function renderPickRow(rowId, options, key, after) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  row.innerHTML = '';
+  Object.entries(options).forEach(([k, o]) => {
+    const el = document.createElement('div');
+    el.className = 'model-btn' + (CONFIG[key] === k ? ' active' : '');
+    el.textContent = o.name;
+    el.addEventListener('click', () => {
+      CONFIG[key] = k; saveConfig();
+      renderPickRow(rowId, options, key, after);
+      applyDomSettings();
+      sceneDirty = true; lastRenderAt = 0;
+      if (after) after();
+    });
+    row.appendChild(el);
+  });
+}
+const RING_STYLES = {
+  classic: { name: 'Classic' },
+  vault:   { name: 'Vault' },
+  orbital: { name: 'Orbital' },
+  sonar:   { name: 'Sonar' },
+};
+const CLOCK_POSITIONS = { left: { name: 'Left' }, center: { name: 'Center' }, right: { name: 'Right' } };
+function renderChromeRows() {
+  renderPickRow('ring-row', RING_STYLES, 'reticleStyle');
+  renderPickRow('font-row', FONT_STACKS, 'hudFont');
+  renderPickRow('clockpos-row', CLOCK_POSITIONS, 'clockPos');
+  renderPickRow('globemodel-row', GLOBE_MODELS, 'globeModel', rebuildGlobe);
+}
+// Ink and stock only mean anything on paper, so the whole block hides
+// elsewhere rather than offering controls that do nothing.
+function renderPaperRows() {
+  const wrap = document.getElementById('paper-only');
+  if (wrap) wrap.style.display = isPaper() ? '' : 'none';
+  const inkRow = document.getElementById('ink-row');
+  if (inkRow) {
+    inkRow.innerHTML = '';
+    Object.entries(PAPER_INKS).forEach(([key, p]) => {
+      const d = document.createElement('div');
+      d.className = 'theme-dot' + (CONFIG.paperInk === key ? ' active' : '');
+      d.style.background = p.swatch;
+      d.title = p.name;
+      d.addEventListener('click', () => {
+        CONFIG.paperInk = key; saveConfig(); applyDomSettings(); renderPaperRows();
+        sceneDirty = true; lastRenderAt = 0;
+      });
+      inkRow.appendChild(d);
+    });
+  }
+  const texRow = document.getElementById('paper-tex-row');
+  if (texRow) {
+    texRow.innerHTML = '';
+    Object.entries(PAPER_TEXTURES).forEach(([key, t]) => {
+      const el = document.createElement('div');
+      el.className = 'model-btn' + (CONFIG.paperTexture === key ? ' active' : '');
+      el.textContent = t.name;
+      el.addEventListener('click', () => {
+        CONFIG.paperTexture = key; saveConfig(); applyDomSettings(); renderPaperRows();
+      });
+      texRow.appendChild(el);
+    });
+  }
+}
+function renderParticleRow() {
+  const row = document.getElementById('particle-row');
+  row.innerHTML = '';
+  Object.entries(PARTICLE_STYLES).forEach(([key, p]) => {
+    const el = document.createElement('div');
+    el.className = 'model-btn' + ((CONFIG.particleStyle || 'static') === key ? ' active' : '');
+    el.textContent = p.name;
+    el.addEventListener('click', () => {
+      CONFIG.particleStyle = key; saveConfig(); renderParticleRow();
+      sceneDirty = true; lastRenderAt = 0;
+    });
+    row.appendChild(el);
+  });
+}
+function renderSurfaceRow() {
+  const row = document.getElementById('surface-row');
+  row.innerHTML = '';
+  Object.keys(SURFACES).forEach((key) => {
+    const el = document.createElement('div');
+    el.className = 'model-btn';
+    el.textContent = key[0].toUpperCase() + key.slice(1);
+    el.addEventListener('click', () => applySurface(key));
+    row.appendChild(el);
+  });
+}
+// One click, several coordinated CONFIG values — a "surface" is a look,
+// not a single slider, so it always applies as a bundle.
+function applySurface(key) {
+  const s = SURFACES[key];
+  if (!s) return;
+  Object.assign(CONFIG, s);
+  saveConfig();
+  renderThemeRow(); renderBgRow(); renderParticleRow(); renderPaperRows(); renderChromeRows();
+  refreshSettingsUI();
+  applyDomSettings();
+  rebuildStars();
+  sceneDirty = true; lastRenderAt = 0;
+  logEvent('> surface: ' + key, 0.6);
+}
 function renderThemeRow() {
   const row = document.getElementById('theme-row');
   row.innerHTML = '';
@@ -2378,7 +3260,10 @@ function renderThemeRow() {
     d.className = 'theme-dot' + (CONFIG.theme === key ? ' active' : '');
     d.style.background = th.swatch;
     d.title = th.name;
-    d.addEventListener('click', () => { CONFIG.theme = key; saveConfig(); renderThemeRow(); });
+    d.addEventListener('click', () => {
+      CONFIG.theme = key; saveConfig(); renderThemeRow(); applyDomSettings();
+      sceneDirty = true; lastRenderAt = 0;
+    });
     row.appendChild(d);
   });
 }
@@ -2391,11 +3276,28 @@ function renderThemeRow() {
 const SETTING_GROUPS = [
   { title: 'Subject', open: true,
     sliders: [
-      ['density', 'Density', 40, 150, '%', 1, { rebuild: true }],
+      ['density', 'Density', 40, 220, '%', 1, { rebuild: true }],
       ['scale', 'Size', 50, 150, '%', 1, { rebuild: true }],
+      ['modelX', 'Position X', -300, 300, 'px', 5],
+      ['modelY', 'Position Y', -300, 300, 'px', 5],
       ['subjectBright', 'Exposure', 30, 200, '%', 1],
       ['keyAmount', 'Key light', 0, 200, '%', 1],
       ['rimAmount', 'Rim light', 0, 250, '%', 1],
+      ['eyeGlowAmount', 'Eye glow amount', 0, 200, '%', 1],
+      ['subjectOpacity', 'Subject opacity', 20, 100, '%', 1],
+    ],
+    toggles: [
+      ['eyeGlow', 'Eye glow'],
+      ['subjectFront', 'Subject in front'],
+    ] },
+  { title: 'Color', open: true,
+    sliders: [
+      ['hueShift', 'Hue shift', -180, 180, '°', 1],
+    ],
+    toggles: [] },
+  { title: 'Background',
+    sliders: [
+      ['bgParticles', 'Background particles', 0, 300, '%', 1, { rebuildStars: true }],
     ],
     toggles: [] },
   { title: 'Mouse & Look', open: true,
@@ -2417,11 +3319,16 @@ const SETTING_GROUPS = [
     sliders: [
       ['sensitivity', 'Audio gain', 50, 200, '%', 1],
       ['jawAmount', 'Mouth', 0, 200, '%', 1],
+      ['audioRingAmount', 'Spectrum ring size', 0, 200, '%', 1],
     ],
-    toggles: [] },
+    toggles: [
+      ['audioRing', 'Spectrum ring'],
+    ] },
   { title: 'Panels & HUD',
     sliders: [
       ['hudBright', 'Panels', 20, 200, '%', 1],
+      ['clockScale', 'Clock size', 60, 220, '%', 1],
+      ['globeSpinSpeed', 'Orbital spin speed', 0, 400, '%', 5],
     ],
     toggles: [
       ['hud', 'HUD panels'],
@@ -2433,14 +3340,26 @@ const SETTING_GROUPS = [
       ['bloomAmount', 'Bloom', 0, 200, '%', 1],
       ['contrast', 'Contrast', 40, 160, '%', 1],
       ['shimmerAmount', 'Shimmer', 0, 200, '%', 1],
+      // Paper only: how hard the pencil presses on the subject.
+      ['inkStrength', 'Ink strength', 20, 200, '%', 1, { redraw: true }],
+      ['glitchFreq', 'Glitch frequency', 0, 300, '%', 1],
+      ['glitchSize', 'Glitch size', 0, 300, '%', 1],
     ],
     toggles: [
-      ['projector', 'Projector base'],
       ['aberration', 'Chromatic aberration'],
       ['scan', 'Scan on refocus'],
       ['glitch', 'Random glitch'],
       ['particles', 'Data packets'],
       ['blink', 'Blink on events'],
+    ] },
+  { title: 'Projector',
+    sliders: [
+      ['projectorX', 'Position X', -300, 300, 'px', 5],
+      ['projectorY', 'Position Y', -300, 300, 'px', 5],
+      ['projectorZ', 'Position Z (depth)', 40, 220, '%', 5],
+    ],
+    toggles: [
+      ['projector', 'Projector base'],
     ] },
   { title: 'Performance',
     sliders: [
@@ -2449,17 +3368,61 @@ const SETTING_GROUPS = [
     toggles: [
       ['idlePower', 'Idle power saving'],
     ] },
+  { title: 'Ring',
+    sliders: [
+      ['reticleScale', 'Ring size', 40, 200, '%', 1],
+      ['reticleSpin', 'Ring spin', 0, 200, '%', 1],
+      ['reticleDetail', 'Ring detail', 20, 200, '%', 1],
+      ['reticleX', 'Ring position X', -400, 400, 'px', 5],
+      ['reticleY', 'Ring position Y', -400, 400, 'px', 5],
+    ],
+    toggles: [] },
+  { title: 'Turntable',
+    sliders: [
+      ['modelSpinSpeed', 'Spin speed', 5, 300, '%', 5],
+    ],
+    toggles: [
+      ['modelSpin', 'Loop subject spin'],
+    ] },
+  { title: 'Layout',
+    sliders: [
+      ['bottomMargin', 'Bottom margin', 0, 150, 'px', 1],
+      ['clockX', 'Clock nudge X', -600, 600, 'px', 5],
+      ['clockY', 'Clock nudge Y', -200, 400, 'px', 5],
+      ['hudLeftX', 'Left column X', -400, 600, 'px', 5],
+      ['hudLeftY', 'Left column Y', -200, 400, 'px', 5],
+      ['hudRightX', 'Right column X', -600, 400, 'px', 5],
+      ['hudRightY', 'Right column Y', -200, 400, 'px', 5],
+      ['hudColW', 'Column width', 50, 180, '%', 5],
+    ],
+    toggles: [] },
+  { title: 'Typography',
+    sliders: [
+      ['hudTextTint', 'Text tint', 0, 100, '%', 1],
+    ],
+    toggles: [] },
 ];
 
 // Settings that only affect the DOM overlays, applied outside the canvas.
 function applyDomSettings() {
   const v = document.querySelector('.vignette');
   if (v) v.style.opacity = Math.max(0, CONFIG.contrast / 100);
+  document.documentElement.style.setProperty('--accent-rgb', theme().accent);
+  // Derived from the key list rather than written out: the hardcoded list
+  // here predated 'paper' and never removed it, so leaving paper left the
+  // sheet behind under every other backdrop.
+  const bod = document.body;
+  Object.keys(BG_STYLES).forEach((k) => bod.classList.remove('bg-' + k));
+  Object.keys(PAPER_TEXTURES).forEach((k) => bod.classList.remove('tex-' + k));
+  bod.classList.add('bg-' + (BG_STYLES[CONFIG.bgStyle] ? CONFIG.bgStyle : 'void'));
+  if (isPaper()) bod.classList.add('tex-' + (PAPER_TEXTURES[CONFIG.paperTexture] ? CONFIG.paperTexture : 'plain'));
+  bod.classList.toggle('clock-center', CONFIG.clockPos === 'center');
 }
 
 function settingChanged(opts) {
   saveConfig();
   if (opts && opts.rebuild) rebuildHero();
+  if (opts && opts.rebuildStars) rebuildStars();
   applyDomSettings();
   // Any change is an event: re-raster and push through the idle throttle so
   // the result is visible immediately instead of up to a frame later.
@@ -2590,7 +3553,11 @@ function idleFps() { return Math.max(2, Math.min(60, CONFIG.idleFps)); }
 function sceneIsActive() {
   return poseMoving || audioActive || ripple >= 0 || packets.length > 0
     || glitchFrames > 0 || !!noiseBand || fxActive()
-    || AI.state !== 'IDLE' || AI.brightness > 0.002 || AI.pathway > 0.002;
+    || AI.state !== 'IDLE' || AI.brightness > 0.002 || AI.pathway > 0.002
+    || (CONFIG.particleStyle && CONFIG.particleStyle !== 'static')
+    // A turning ring or a spinning subject is continuous motion by
+    // definition; throttled to the idle frame rate it would visibly step.
+    || (CONFIG.reticleSpin > 0) || CONFIG.modelSpin;
 }
 function frame() {
   requestAnimationFrame(frame);
@@ -2612,6 +3579,7 @@ function frame() {
   lastRenderAt = now;
   t += 1;
   trackFrame();
+  updateSmooth();
 
   // --- sense ---
   analyseAudio();
@@ -2620,6 +3588,7 @@ function frame() {
   updateBlink();
   updateRipple();
   updateNoiseBand();
+  updateStars();
   updateSaccade();
   // Hosts push timeline updates only occasionally (on seek, track change,
   // or every few seconds), so the elapsed figure is extrapolated between
@@ -2632,7 +3601,7 @@ function frame() {
   // instrument in a corner panel, not the subject, and it renders to its
   // own small buffer so it cannot dirty the cached hero or defeat the idle
   // throttle. ~39s per revolution, with a kick on a network event.
-  globeYaw += ((CONFIG.globeSpin ? 0.16 : 0) + fx('panel-link') * 1.9) * DT / 1000;
+  globeYaw += ((CONFIG.globeSpin ? 0.16 * (SMOOTH.globeSpinSpeed / 100) : 0) + fx('panel-link') * 1.9) * DT / 1000;
   if (globeYaw > 6.283185) globeYaw -= 6.283185;
   if (now - lastHistAt > 250) {
     lastHistAt = now;
@@ -2661,23 +3630,128 @@ function frame() {
   if (gRect) renderGlobe(gRect);
 
   // --- composite, back to front ---
-  ctx.fillStyle = '#04060a';
-  ctx.fillRect(0, 0, W, H);
-  drawProjector(r0);          // light pool sits behind the subject
-  blitScene(shimmerGain());
-  drawEyeGlow(r0);
-  drawCallouts(r0);
+  // Was an opaque fillRect here, which fully hid the DOM backdrop (the
+  // theme-tinted CSS gradient behind the canvas) on every single frame —
+  // that's why background/theme changes were invisible. Clearing to
+  // transparent instead lets it show through in every pixel nothing else
+  // draws over.
+  ctx.clearRect(0, 0, W, H);
+  // Everything the subject stands inside goes down first, so the subject
+  // itself is unambiguously the front-most object. The ring in particular
+  // used to be drawn with the HUD, i.e. on top of the very thing it is
+  // supposed to sit behind.
+  drawProjector(r0);
+  if (CONFIG.hud) {
+    HUD_K = Math.max(0, SMOOTH.hudBright / 100);
+    drawReticle(r0);
+    if (CONFIG.audioRing) drawAudioRing(r0);
+    HUD_K = 1;
+  }
+  // The subject is a stipple, so anything painted after it shows through the
+  // gaps between its dots and reads as sitting on top. With subjectFront on,
+  // the entire instrument layer goes down first and the subject lands last —
+  // only its own glow and its own callouts are allowed above it.
+  const front = CONFIG.subjectFront;
+  const drawSubject = () => {
+    blitScene(shimmerGain() * (SMOOTH.subjectOpacity / 100));
+    if (CONFIG.eyeGlow) drawEyeGlow(r0);
+    drawCallouts(r0);
+  };
+  if (!front) drawSubject();
   // Panel brightness applies to the instrument layer only — the globe is
   // HUD furniture, the eyes and projector are the subject and stay put.
-  HUD_K = Math.max(0, CONFIG.hudBright / 100);
+  HUD_K = Math.max(0, SMOOTH.hudBright / 100);
   if (gRect) drawGlobeLayer(gRect);
   if (CONFIG.hud) drawHUD(r0);
   HUD_K = 1;
   if (CONFIG.particles) drawPackets();
   drawNoiseBand();
+  if (front) drawSubject();
   if (CONFIG.glitch) maybeGlitch();
-  if (CONFIG.bloom) drawBloom();
+  // Bloom is an additive blur of emitted light. Paper has none to bloom,
+  // and running it there just fogs the sheet toward white.
+  if (CONFIG.bloom && !isPaper()) drawBloom();
 }
+
+// ---------- Wallpaper Engine native properties ----------
+// A desktop wallpaper doesn't reliably receive mouse clicks (that needs
+// WE's own "interactive" toggle, off by default), so the in-page gear
+// panel can be unreachable in practice. Mirroring the same CONFIG keys
+// into project.json's declared properties means every control here is
+// also reachable from WE's own right-click Properties dialog, which
+// always works regardless of click-through.
+let weReady = false;
+function handleWEProperties(properties) {
+  if (!properties) return;
+  const P = properties;
+  const val = (p) => p && p.value;
+  let modelChanged = false, starsChanged = false, globeChanged = false;
+  if (P.model && val(P.model) && val(P.model) !== CONFIG.model) { CONFIG.model = val(P.model); modelChanged = true; }
+  if (P.theme && val(P.theme)) CONFIG.theme = val(P.theme);
+  if (P.huecustom !== undefined) CONFIG.hueShift = Number(val(P.huecustom));
+  if (P.bgstyle && val(P.bgstyle)) CONFIG.bgStyle = val(P.bgstyle);
+  if (P.bgparticles !== undefined) { CONFIG.bgParticles = Number(val(P.bgparticles)); starsChanged = true; }
+  if (P.sensitivity !== undefined) CONFIG.sensitivity = Number(val(P.sensitivity));
+  if (P.jawamount !== undefined) CONFIG.jawAmount = Number(val(P.jawamount));
+  if (P.eyeglow !== undefined) CONFIG.eyeGlow = !!val(P.eyeglow);
+  if (P.eyeglowamount !== undefined) CONFIG.eyeGlowAmount = Number(val(P.eyeglowamount));
+  if (P.bloomamount !== undefined) CONFIG.bloomAmount = Number(val(P.bloomamount));
+  if (P.glitchfreq !== undefined) CONFIG.glitchFreq = Number(val(P.glitchfreq));
+  if (P.glitchsize !== undefined) CONFIG.glitchSize = Number(val(P.glitchsize));
+  if (P.bottommargin !== undefined) CONFIG.bottomMargin = Number(val(P.bottommargin));
+  if (P.hudbright !== undefined) CONFIG.hudBright = Number(val(P.hudbright));
+  if (P.clockscale !== undefined) CONFIG.clockScale = Number(val(P.clockscale));
+  if (P.audioring !== undefined) CONFIG.audioRing = !!val(P.audioring);
+  if (P.audioringamount !== undefined) CONFIG.audioRingAmount = Number(val(P.audioringamount));
+  if (P.projector !== undefined) CONFIG.projector = !!val(P.projector);
+  if (P.projectorx !== undefined) CONFIG.projectorX = Number(val(P.projectorx));
+  if (P.projectory !== undefined) CONFIG.projectorY = Number(val(P.projectory));
+  if (P.projectorz !== undefined) CONFIG.projectorZ = Number(val(P.projectorz));
+  if (P.modelx !== undefined) CONFIG.modelX = Number(val(P.modelx));
+  if (P.modely !== undefined) CONFIG.modelY = Number(val(P.modely));
+  if (P.particlestyle && val(P.particlestyle)) { CONFIG.particleStyle = val(P.particlestyle); starsChanged = true; }
+  if (P.paperink && val(P.paperink)) CONFIG.paperInk = val(P.paperink);
+  if (P.papertexture && val(P.papertexture)) CONFIG.paperTexture = val(P.papertexture);
+  if (P.inkstrength !== undefined) CONFIG.inkStrength = Number(val(P.inkstrength));
+  if (P.reticlestyle && val(P.reticlestyle)) CONFIG.reticleStyle = val(P.reticlestyle);
+  if (P.reticlescale !== undefined) CONFIG.reticleScale = Number(val(P.reticlescale));
+  if (P.reticlespin !== undefined) CONFIG.reticleSpin = Number(val(P.reticlespin));
+  if (P.reticledetail !== undefined) CONFIG.reticleDetail = Number(val(P.reticledetail));
+  if (P.reticlex !== undefined) CONFIG.reticleX = Number(val(P.reticlex));
+  if (P.reticley !== undefined) CONFIG.reticleY = Number(val(P.reticley));
+  if (P.modelspin !== undefined) CONFIG.modelSpin = !!val(P.modelspin);
+  if (P.modelspinspeed !== undefined) CONFIG.modelSpinSpeed = Number(val(P.modelspinspeed));
+  if (P.clockpos && val(P.clockpos)) CONFIG.clockPos = val(P.clockpos);
+  if (P.clockx !== undefined) CONFIG.clockX = Number(val(P.clockx));
+  if (P.clocky !== undefined) CONFIG.clockY = Number(val(P.clocky));
+  if (P.hudfont && val(P.hudfont)) CONFIG.hudFont = val(P.hudfont);
+  if (P.hudtexttint !== undefined) CONFIG.hudTextTint = Number(val(P.hudtexttint));
+  if (P.hudleftx !== undefined) CONFIG.hudLeftX = Number(val(P.hudleftx));
+  if (P.hudlefty !== undefined) CONFIG.hudLeftY = Number(val(P.hudlefty));
+  if (P.hudrightx !== undefined) CONFIG.hudRightX = Number(val(P.hudrightx));
+  if (P.hudrighty !== undefined) CONFIG.hudRightY = Number(val(P.hudrighty));
+  if (P.hudcolw !== undefined) CONFIG.hudColW = Number(val(P.hudcolw));
+  if (P.subjectfront !== undefined) CONFIG.subjectFront = !!val(P.subjectfront);
+  if (P.subjectopacity !== undefined) CONFIG.subjectOpacity = Number(val(P.subjectopacity));
+  if (P.globemodel && val(P.globemodel) !== CONFIG.globeModel) { CONFIG.globeModel = val(P.globemodel); globeChanged = true; }
+  if (P.globespinspeed !== undefined) CONFIG.globeSpinSpeed = Number(val(P.globespinspeed));
+  if (P.density !== undefined && Number(val(P.density)) !== CONFIG.density) {
+    CONFIG.density = Number(val(P.density));
+    modelChanged = true;   // density is baked into the point list, so re-run the build
+  }
+  if (P.surface && val(P.surface)) applySurface(val(P.surface));
+
+  saveConfig();
+  if (!weReady) return; // stored into CONFIG now; boot() applies it once models are loaded
+  if (modelChanged) rebuildHero();
+  if (starsChanged) rebuildStars();
+  if (globeChanged) rebuildGlobe();
+  renderModelRow(); renderThemeRow(); renderBgRow(); renderPaperRows(); renderChromeRows();
+  refreshSettingsUI();
+  applyDomSettings();
+  sceneDirty = true; lastRenderAt = 0;
+}
+window.wallpaperPropertyListener = { applyUserProperties: handleWEProperties };
 
 // ---------- Boot ----------
 // Model payload is loaded with a cache-busting query. Without it the
@@ -2694,15 +3768,32 @@ function frame() {
     }
     rebuildHero();
     rebuildGlobe();
+    rebuildStars();
     renderModelRow();
     renderThemeRow();
+    renderBgRow();
+    renderParticleRow();
+    renderSurfaceRow();
+    renderPaperRows();
+    renderChromeRows();
     buildSettingsUI();
     applyDomSettings();
+    weReady = true;
     loading.style.display = 'none';
     NOW = performance.now();
     logEvent('> link: volumetric channel open', 0.8);
     logEvent('> subject: ' + modelCfg().id + ' · ' + heroPoints.length.toLocaleString() + ' pts', 0.7);
-    if (!window.wallpaperRegisterAudioListener) logEvent('> audio: no host stream', 0.5);
+    if (!window.wallpaperRegisterAudioListener) {
+      logEvent('> audio: no host stream', 0.5);
+      // Standalone: offer the mic instead of just reporting no audio.
+      const mb = document.getElementById('mic-btn');
+      if (mb) {
+        mb.style.display = 'block';
+        mb.addEventListener('click', () => {
+          startMic().then((ok) => { if (ok) mb.style.display = 'none'; });
+        });
+      }
+    }
     // One sweep on arrival, then the scene settles and holds.
     fire('sweep', 2000); fire('refocus', 1400);
     requestAnimationFrame(frame);
