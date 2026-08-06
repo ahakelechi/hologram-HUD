@@ -85,6 +85,41 @@ Speaking back uses the operating system's voices and does not need any of
 that, so "TEST VOICE" can work even when listening does not.
 
 
+VOICE INSIDE WALLPAPER ENGINE (the bridge)
+------------------------------------------
+Inside Wallpaper Engine the microphone opens but transcription does not work:
+Chromium sends audio to a speech service, and the embedded browser Wallpaper
+Engine uses ships without the keys to reach it. It fails with "error network"
+no matter what you set.
+
+The bridge works around that. Recognition happens in a small companion
+process, and the recognised text is sent to the wallpaper over a local
+socket. Everything after that - wake word, answers, replies, the mouth - is
+the same code path as normal.
+
+  1. Open a terminal in this folder
+  2. node holo-bridge.js
+  3. In the wallpaper, turn on "Local voice bridge"
+     (settings panel, or Wallpaper Engine properties)
+
+The bottom ticker shows BRIDGE LINKED when connected.
+
+Anything you type into that terminal is sent to the wallpaper as if spoken:
+
+  nexus what time is it
+
+Other programs can push text in too:
+
+  curl -X POST http://127.0.0.1:8787/say -d "nexus switch to skull"
+
+That POST hook is where speech-to-text plugs in - anything that can turn
+audio into text and make an HTTP request can drive it, Whisper included.
+Nothing is wired to a microphone yet; this is the pipe, proven end to end.
+
+It listens on 127.0.0.1 only, so nothing off your machine can reach it.
+Whatever can talk to it can drive the wallpaper, so leave it that way.
+
+
 BACKGROUND PICTURE
 ------------------
 Settings -> Backdrop -> Picture, then "CHOOSE IMAGE".

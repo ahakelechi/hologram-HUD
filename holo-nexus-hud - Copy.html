@@ -543,6 +543,10 @@ const DEFAULT_CONFIG = {
   bgImageBlur: 0,        // px
   // Voice assistant. Off by default: it opens the microphone and talks back,
   // neither of which should happen to a wallpaper unasked.
+  // Local bridge: companion process does the speech-to-text and sends the
+  // recognised text here. This is the path that works inside Wallpaper Engine.
+  bridge: false,
+  bridgePort: 8787,
   assistant: false,
   assistantSpeak: true,
   assistantVolume: 90,
@@ -1255,6 +1259,67 @@ function voiceTick() {
     VOICE.energy += (0 - VOICE.energy) * Math.min(1, DT / 120);
   }
 }
+// ---------- Local bridge ----------
+// The way in for voice inside Wallpaper Engine. The probe established that
+// the microphone opens there but transcription cannot reach a speech service,
+// so recognition happens in a companion process and the resulting text
+// arrives here. Everything downstream — wake word, brain, reply, lip sync —
+// is the same code the in-page recogniser feeds, so there is one path to
+// maintain rather than two.
+const BRIDGE = { status: 'OFF', tries: 0, lastAt: 0 };
+let bridgeSock = null, bridgeRetryAt = 0;
+function bridgeUrl() { return 'ws://127.0.0.1:' + (CONFIG.bridgePort || 8787); }
+function connectBridge() {
+  if (!CONFIG.bridge || bridgeSock) return;
+  let s;
+  try { s = new WebSocket(bridgeUrl()); }
+  catch (e) { BRIDGE.status = 'FAILED'; return; }
+  bridgeSock = s;
+  BRIDGE.status = 'CONNECTING';
+  s.onopen = () => {
+    BRIDGE.status = 'LINKED'; BRIDGE.tries = 0;
+    logEvent('> bridge: linked on port ' + (CONFIG.bridgePort || 8787), 0.85);
+    fire('panel-link', 1200); spawnPackets('link', 4);
+  };
+  s.onmessage = (ev) => {
+    let msg = null;
+    try { msg = JSON.parse(ev.data); } catch (e) { return; }
+    if (!msg) return;
+    if (msg.type === 'utterance' && msg.text) {
+      BRIDGE.lastAt = NOW;
+      // Straight into the same handler the in-page recogniser uses.
+      handleUtterance(String(msg.text));
+    }
+  };
+  s.onerror = () => { /* onclose always follows; handled there */ };
+  s.onclose = () => {
+    bridgeSock = null;
+    if (!CONFIG.bridge) { BRIDGE.status = 'OFF'; return; }
+    BRIDGE.tries++;
+    // Backed off and capped, because an always-on wallpaper retrying a dead
+    // port every second is exactly the loop the speech probe got wrong.
+    const wait = Math.min(30000, 1000 * Math.pow(1.8, Math.min(BRIDGE.tries, 8)));
+    bridgeRetryAt = NOW + wait;
+    BRIDGE.status = BRIDGE.tries > 3 ? 'NO BRIDGE' : 'RETRY';
+    if (BRIDGE.tries === 1) logEvent('> bridge: not running — start holo-bridge.js', 0.6);
+  };
+}
+function disconnectBridge() {
+  CONFIG.bridge = false;
+  if (bridgeSock) { try { bridgeSock.close(); } catch (e) {} bridgeSock = null; }
+  BRIDGE.status = 'OFF'; BRIDGE.tries = 0;
+}
+function bridgeTick() {
+  if (!CONFIG.bridge) return;
+  if (!bridgeSock && bridgeRetryAt && NOW > bridgeRetryAt) { bridgeRetryAt = 0; connectBridge(); }
+}
+// Lets the companion log what the wallpaper answered, so a headless setup can
+// still be followed from the console it was started in.
+function bridgeReport(text) {
+  if (bridgeSock && bridgeSock.readyState === 1) {
+    try { bridgeSock.send(JSON.stringify({ type: 'reply', text })); } catch (e) {}
+  }
+}
 // ---- the brain: rules over what the HUD already measures ----
 function fmtClockWords(d) {
   return d.toLocaleTimeString(navigator.language || 'en-US', { hour: 'numeric', minute: '2-digit' });
@@ -1328,6 +1393,7 @@ function handleUtterance(text) {
   const reply = assistantAnswer(q);
   if (!reply) { logEvent('> voice: no answer for that', 0.5); setState('ATTENTIVE'); return; }
   VOICE.reply = reply;
+  bridgeReport(reply);
   logEvent('> reply: ' + ellipsize(reply, 34), 0.85);
   setState('RESPONDING');
   fire('respond', 1400); fire('notify', 700);
@@ -2814,6 +2880,7 @@ function drawTicker() {
   const fields = [
     ['SUBJ', modelCfg().id],
     ['VOICE', VOICE.status + (VOICE.detail ? ':' + VOICE.detail : '')],
+    ['BRIDGE', BRIDGE.status],
     ['RES', W + 'x' + H + '@' + (window.devicePixelRatio || 1).toFixed(2) + 'x'],
     ['PTS', heroPoints.length.toLocaleString()],
     ['FPS', (SYS.fps || '--') + '/' + SYS.frameMs.toFixed(1) + 'MS'],
@@ -3927,6 +3994,7 @@ const SETTING_GROUPS = [
       ['audioRing', 'Spectrum ring'],
       ['ambient', 'Ambient sound bed'],
       ['assistant', 'Voice assistant'],
+      ['bridge', 'Local voice bridge'],
       ['assistantSpeak', 'Speak replies'],
     ] },
   { title: 'Panels & HUD',
@@ -4122,6 +4190,10 @@ function buildSettingsUI() {
         if (key === 'assistant') {
           if (inp.checked) startAssistant(); else stopAssistant();
         }
+        if (key === 'bridge') {
+          if (inp.checked) { CONFIG.bridge = true; BRIDGE.tries = 0; connectBridge(); }
+          else disconnectBridge();
+        }
         settingChanged(null);
         logEvent('> config: ' + key + ' ' + (inp.checked ? 'on' : 'off'), 0.5);
       });
@@ -4196,7 +4268,7 @@ function sceneIsActive() {
     // definition; throttled to the idle frame rate it would visibly step.
     || (CONFIG.reticleSpin > 0) || CONFIG.modelSpin
     // a resolving readout is motion too, and would otherwise crawl at idle fps
-    || rollActive() || VOICE.speaking || VOICE.listening;
+    || rollActive() || VOICE.speaking || VOICE.listening || BRIDGE.status === 'LINKED';
 }
 function frame() {
   requestAnimationFrame(frame);
@@ -4224,6 +4296,7 @@ function frame() {
   analyseAudio();
   ambientUpdate();
   voiceTick();
+  bridgeTick();
   updateState();
   watchSystem();
   updateBlink();
@@ -4391,6 +4464,8 @@ function handleWEProperties(properties) {
   if (P.assistantspeak !== undefined) CONFIG.assistantSpeak = !!val(P.assistantspeak);
   if (P.assistantvolume !== undefined) CONFIG.assistantVolume = Number(val(P.assistantvolume));
   if (P.wakeword && typeof val(P.wakeword) === 'string') CONFIG.wakeWord = val(P.wakeword).trim();
+  if (P.bridge !== undefined) { const on = !!val(P.bridge); if (on !== CONFIG.bridge) { CONFIG.bridge = on; if (on) { BRIDGE.tries = 0; connectBridge(); } else disconnectBridge(); } }
+  if (P.bridgeport !== undefined) CONFIG.bridgePort = Number(val(P.bridgeport));
   if (P.density !== undefined && Number(val(P.density)) !== CONFIG.density) {
     CONFIG.density = Number(val(P.density));
     modelChanged = true;   // density is baked into the point list, so re-run the build
@@ -4434,6 +4509,7 @@ window.wallpaperPropertyListener = { applyUserProperties: handleWEProperties };
     renderChromeRows();
     buildSettingsUI();
     applyDomSettings();
+    if (CONFIG.bridge) connectBridge();
     if (CONFIG.assistant) {
       // No gesture is available inside Wallpaper Engine, so this is attempted
       // directly; whether it succeeds is exactly what the probe reports.

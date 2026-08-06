@@ -765,6 +765,21 @@
 				"text": "Wake word",
 				"type": "textinput",
 				"value": "nexus"
+			},
+			"bridge": {
+				"order": 66,
+				"text": "Local voice bridge",
+				"type": "bool",
+				"value": false
+			},
+			"bridgeport": {
+				"order": 67,
+				"text": "Bridge port",
+				"type": "slider",
+				"value": 8787,
+				"min": 1024,
+				"max": 65535,
+				"step": 1
 			}
 		},
 		"supportsaudioprocessing": true
