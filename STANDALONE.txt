@@ -1,0 +1,75 @@
+HOLO // NEXUS — standalone
+==========================
+
+Runs on any PC with a modern browser. Wallpaper Engine is NOT required.
+
+
+HOW TO RUN
+----------
+Double-click index.html. That's it.
+
+Both files must stay in the same folder — index.html loads holo-models.js
+from next to itself. If you move one, move both.
+
+
+SETTINGS
+--------
+Click the gear icon at the top of the screen. Everything is in there:
+subject, colours, backdrop, ring style, fonts, layout, projector, and so on.
+Drag the panel by its top bar to move it out of the way.
+
+Settings are saved in the browser's local storage, so they persist between
+visits as long as you open it from the same path in the same browser.
+
+
+AUDIO
+-----
+Click "ENABLE AUDIO" (top of screen) and allow microphone access. The HUD
+then reacts to whatever the microphone hears — the mouth opens, the spectrum
+ring moves, and the meters read live.
+
+Why the microphone: a web page cannot read your PC's audio output the way
+Wallpaper Engine can. Inside Wallpaper Engine the wallpaper gets the system
+audio stream directly and this button never appears. In a plain browser the
+microphone is the only audio a page is allowed to have. If you want it to
+react to music, play the music out loud, or use the Wallpaper Engine version.
+
+With no audio at all it stays deliberately still: meters read zero and the
+panel says NO AUDIO LINK rather than inventing movement.
+
+
+AMBIENT SOUND
+-------------
+Settings panel -> Audio -> "Ambient sound bed", with a volume slider.
+Off by default.
+
+It is synthesised in the page (a few detuned low oscillators), not a sound
+file, so there is nothing extra to download and no loop to notice.
+
+One thing worth knowing: the bed plays out of the same speakers the
+visualiser listens to, so it would otherwise hear its own hum and sit
+permanently "LIVE". The activity threshold lifts in step with the ambient
+volume to stop that. Real audio still registers normally.
+
+
+FULL SCREEN
+-----------
+Press F11 in most browsers. For a permanently-on display, use your browser's
+kiosk mode, e.g.:
+
+  chrome.exe --kiosk --app="file:///C:/path/to/holo-nexus/index.html"
+
+
+NOW PLAYING PANEL
+-----------------
+Shows "NO HOST BRIDGE" outside Wallpaper Engine. Track titles come from
+Windows' media controls via a Wallpaper Engine bridge, which a plain browser
+has no access to. Everything else works the same.
+
+
+PERFORMANCE
+-----------
+It idles cheaply on purpose: when nothing is happening the frame rate drops
+and the point cloud is served from cache. Turning off "Loop subject spin" and
+setting Ring spin to 0 lets it go fully still, which is the cheapest state.
+Idle FPS and idle power saving are under Performance in the settings panel.

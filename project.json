@@ -1,0 +1,657 @@
+{
+	"file": "holo-nexus-hud - Copy.html",
+	"general": {
+		"properties": {
+			"schemecolor": {
+				"order": 0,
+				"text": "ui_browse_properties_scheme_color",
+				"type": "color",
+				"value": "0 0 0"
+			},
+			"model": {
+				"order": 1,
+				"text": "Subject",
+				"type": "combo",
+				"value": "human",
+				"options": [
+					{
+						"label": "Human",
+						"value": "human"
+					},
+					{
+						"label": "Titan",
+						"value": "titan"
+					},
+					{
+						"label": "Drone",
+						"value": "drone"
+					},
+					{
+						"label": "Vampire",
+						"value": "vampire"
+					},
+					{
+						"label": "Zombie",
+						"value": "zombie"
+					},
+					{
+						"label": "Zombie (full figure)",
+						"value": "zombiefull"
+					},
+					{
+						"label": "Skull",
+						"value": "skull"
+					}
+				]
+			},
+			"theme": {
+				"order": 2,
+				"text": "Signal colour",
+				"type": "combo",
+				"value": "cyan",
+				"options": [
+					{
+						"label": "Cyan",
+						"value": "cyan"
+					},
+					{
+						"label": "Red",
+						"value": "broadcast"
+					},
+					{
+						"label": "Violet",
+						"value": "violet"
+					},
+					{
+						"label": "Amber",
+						"value": "amber"
+					},
+					{
+						"label": "Mint",
+						"value": "mint"
+					},
+					{
+						"label": "Sepia (ink)",
+						"value": "sepia"
+					}
+				]
+			},
+			"huecustom": {
+				"order": 3,
+				"text": "Colour hue shift",
+				"type": "slider",
+				"value": 0,
+				"min": -180,
+				"max": 180,
+				"step": 1
+			},
+			"bgstyle": {
+				"order": 4,
+				"text": "Backdrop",
+				"type": "combo",
+				"value": "void",
+				"options": [
+					{
+						"label": "Void",
+						"value": "void"
+					},
+					{
+						"label": "Nebula",
+						"value": "nebula"
+					},
+					{
+						"label": "Aurora",
+						"value": "aurora"
+					},
+					{
+						"label": "Paper",
+						"value": "paper"
+					}
+				]
+			},
+			"bgparticles": {
+				"order": 5,
+				"text": "Background particles (count)",
+				"type": "slider",
+				"value": 130,
+				"min": 0,
+				"max": 10130,
+				"step": 10
+			},
+			"sensitivity": {
+				"order": 6,
+				"text": "Audio gain (%)",
+				"type": "slider",
+				"value": 100,
+				"min": 50,
+				"max": 200,
+				"step": 5
+			},
+			"jawamount": {
+				"order": 7,
+				"text": "Mouth amount (%)",
+				"type": "slider",
+				"value": 100,
+				"min": 0,
+				"max": 200,
+				"step": 5
+			},
+			"audioring": {
+				"order": 8,
+				"text": "Spectrum ring",
+				"type": "bool",
+				"value": true
+			},
+			"audioringamount": {
+				"order": 9,
+				"text": "Spectrum ring size (%)",
+				"type": "slider",
+				"value": 100,
+				"min": 0,
+				"max": 200,
+				"step": 5
+			},
+			"eyeglow": {
+				"order": 10,
+				"text": "Eye glow",
+				"type": "bool",
+				"value": false
+			},
+			"eyeglowamount": {
+				"order": 11,
+				"text": "Eye glow amount (%)",
+				"type": "slider",
+				"value": 100,
+				"min": 0,
+				"max": 200,
+				"step": 5
+			},
+			"bloomamount": {
+				"order": 12,
+				"text": "Bloom (%)",
+				"type": "slider",
+				"value": 100,
+				"min": 0,
+				"max": 200,
+				"step": 5
+			},
+			"glitchfreq": {
+				"order": 13,
+				"text": "Glitch frequency (%)",
+				"type": "slider",
+				"value": 100,
+				"min": 0,
+				"max": 300,
+				"step": 5
+			},
+			"glitchsize": {
+				"order": 14,
+				"text": "Glitch size (%)",
+				"type": "slider",
+				"value": 100,
+				"min": 0,
+				"max": 300,
+				"step": 5
+			},
+			"clockscale": {
+				"order": 15,
+				"text": "Clock size (%)",
+				"type": "slider",
+				"value": 130,
+				"min": 60,
+				"max": 220,
+				"step": 5
+			},
+			"hudbright": {
+				"order": 16,
+				"text": "Panel brightness (%)",
+				"type": "slider",
+				"value": 100,
+				"min": 20,
+				"max": 200,
+				"step": 5
+			},
+			"bottommargin": {
+				"order": 17,
+				"text": "Bottom margin (px, for taskbar)",
+				"type": "slider",
+				"value": 40,
+				"min": 0,
+				"max": 150,
+				"step": 5
+			},
+			"projector": {
+				"order": 18,
+				"text": "Projector base",
+				"type": "bool",
+				"value": true
+			},
+			"projectorx": {
+				"order": 19,
+				"text": "Projector position X (px)",
+				"type": "slider",
+				"value": 0,
+				"min": -300,
+				"max": 300,
+				"step": 5
+			},
+			"projectory": {
+				"order": 20,
+				"text": "Projector position Y (px, +down)",
+				"type": "slider",
+				"value": 0,
+				"min": -300,
+				"max": 300,
+				"step": 5
+			},
+			"projectorz": {
+				"order": 21,
+				"text": "Projector depth Z (%)",
+				"type": "slider",
+				"value": 100,
+				"min": 40,
+				"max": 220,
+				"step": 5
+			},
+			"modelx": {
+				"order": 22,
+				"text": "Subject position X (px)",
+				"type": "slider",
+				"value": 0,
+				"min": -300,
+				"max": 300,
+				"step": 5
+			},
+			"modely": {
+				"order": 23,
+				"text": "Subject position Y (px)",
+				"type": "slider",
+				"value": 0,
+				"min": -300,
+				"max": 300,
+				"step": 5
+			},
+			"particlestyle": {
+				"order": 24,
+				"text": "Particle motion",
+				"type": "combo",
+				"value": "static",
+				"options": [
+					{
+						"label": "Static",
+						"value": "static"
+					},
+					{
+						"label": "Drift",
+						"value": "drift"
+					},
+					{
+						"label": "Rise",
+						"value": "rise"
+					},
+					{
+						"label": "Fall",
+						"value": "fall"
+					}
+				]
+			},
+			"paperink": {
+				"order": 25,
+				"text": "Paper: ink",
+				"type": "combo",
+				"value": "graphite",
+				"options": [
+					{
+						"label": "Graphite",
+						"value": "graphite"
+					},
+					{
+						"label": "Charcoal",
+						"value": "charcoal"
+					},
+					{
+						"label": "Ballpoint",
+						"value": "ballpoint"
+					},
+					{
+						"label": "Sepia",
+						"value": "sepia"
+					},
+					{
+						"label": "Red pen",
+						"value": "redpen"
+					}
+				]
+			},
+			"papertexture": {
+				"order": 26,
+				"text": "Paper: stock",
+				"type": "combo",
+				"value": "plain",
+				"options": [
+					{
+						"label": "Plain",
+						"value": "plain"
+					},
+					{
+						"label": "Ruled",
+						"value": "ruled"
+					},
+					{
+						"label": "Grid",
+						"value": "grid"
+					},
+					{
+						"label": "Graph",
+						"value": "graph"
+					},
+					{
+						"label": "Aged",
+						"value": "aged"
+					},
+					{
+						"label": "Kraft",
+						"value": "kraft"
+					}
+				]
+			},
+			"inkstrength": {
+				"order": 27,
+				"text": "Paper: ink strength (%)",
+				"type": "slider",
+				"value": 100,
+				"min": 20,
+				"max": 200,
+				"step": 5
+			},
+			"reticlestyle": {
+				"order": 28,
+				"text": "Ring style",
+				"type": "combo",
+				"value": "classic",
+				"options": [
+					{
+						"label": "Classic",
+						"value": "classic"
+					},
+					{
+						"label": "Vault",
+						"value": "vault"
+					},
+					{
+						"label": "Orbital",
+						"value": "orbital"
+					},
+					{
+						"label": "Sonar",
+						"value": "sonar"
+					}
+				]
+			},
+			"reticlescale": {
+				"order": 29,
+				"text": "Ring size (%)",
+				"type": "slider",
+				"value": 100,
+				"min": 40,
+				"max": 200,
+				"step": 5
+			},
+			"reticlespin": {
+				"order": 30,
+				"text": "Ring spin (%)",
+				"type": "slider",
+				"value": 35,
+				"min": 0,
+				"max": 200,
+				"step": 5
+			},
+			"reticledetail": {
+				"order": 31,
+				"text": "Ring detail (%)",
+				"type": "slider",
+				"value": 100,
+				"min": 20,
+				"max": 200,
+				"step": 5
+			},
+			"reticlex": {
+				"order": 32,
+				"text": "Ring position X (px)",
+				"type": "slider",
+				"value": 0,
+				"min": -400,
+				"max": 400,
+				"step": 5
+			},
+			"reticley": {
+				"order": 33,
+				"text": "Ring position Y (px)",
+				"type": "slider",
+				"value": 0,
+				"min": -400,
+				"max": 400,
+				"step": 5
+			},
+			"modelspin": {
+				"order": 34,
+				"text": "Loop subject spin",
+				"type": "bool",
+				"value": false
+			},
+			"modelspinspeed": {
+				"order": 35,
+				"text": "Spin speed (%)",
+				"type": "slider",
+				"value": 30,
+				"min": 5,
+				"max": 300,
+				"step": 5
+			},
+			"clockpos": {
+				"order": 36,
+				"text": "Clock position",
+				"type": "combo",
+				"value": "right",
+				"options": [
+					{
+						"label": "Left",
+						"value": "left"
+					},
+					{
+						"label": "Center",
+						"value": "center"
+					},
+					{
+						"label": "Right",
+						"value": "right"
+					}
+				]
+			},
+			"clockx": {
+				"order": 37,
+				"text": "Clock nudge X (px)",
+				"type": "slider",
+				"value": 0,
+				"min": -600,
+				"max": 600,
+				"step": 5
+			},
+			"clocky": {
+				"order": 38,
+				"text": "Clock nudge Y (px)",
+				"type": "slider",
+				"value": 0,
+				"min": -200,
+				"max": 400,
+				"step": 5
+			},
+			"hudfont": {
+				"order": 39,
+				"text": "HUD font",
+				"type": "combo",
+				"value": "mono",
+				"options": [
+					{
+						"label": "Techno",
+						"value": "mono"
+					},
+					{
+						"label": "Display",
+						"value": "display"
+					},
+					{
+						"label": "System",
+						"value": "system"
+					},
+					{
+						"label": "Serif",
+						"value": "serif"
+					}
+				]
+			},
+			"hudtexttint": {
+				"order": 40,
+				"text": "Text tint (%)",
+				"type": "slider",
+				"value": 0,
+				"min": 0,
+				"max": 100,
+				"step": 1
+			},
+			"hudleftx": {
+				"order": 41,
+				"text": "Left column X (px)",
+				"type": "slider",
+				"value": 0,
+				"min": -400,
+				"max": 600,
+				"step": 5
+			},
+			"hudlefty": {
+				"order": 42,
+				"text": "Left column Y (px)",
+				"type": "slider",
+				"value": 0,
+				"min": -200,
+				"max": 400,
+				"step": 5
+			},
+			"hudrightx": {
+				"order": 43,
+				"text": "Right column X (px)",
+				"type": "slider",
+				"value": 0,
+				"min": -600,
+				"max": 400,
+				"step": 5
+			},
+			"hudrighty": {
+				"order": 44,
+				"text": "Right column Y (px)",
+				"type": "slider",
+				"value": 0,
+				"min": -200,
+				"max": 400,
+				"step": 5
+			},
+			"hudcolw": {
+				"order": 45,
+				"text": "Column width (%)",
+				"type": "slider",
+				"value": 100,
+				"min": 50,
+				"max": 180,
+				"step": 5
+			},
+			"subjectfront": {
+				"order": 46,
+				"text": "Subject in front of HUD",
+				"type": "bool",
+				"value": true
+			},
+			"subjectopacity": {
+				"order": 47,
+				"text": "Subject opacity (%)",
+				"type": "slider",
+				"value": 100,
+				"min": 20,
+				"max": 100,
+				"step": 5
+			},
+			"density": {
+				"order": 48,
+				"text": "Point density (%)",
+				"type": "slider",
+				"value": 100,
+				"min": 40,
+				"max": 220,
+				"step": 5
+			},
+			"globemodel": {
+				"order": 49,
+				"text": "Orbital instrument",
+				"type": "combo",
+				"value": "earth",
+				"options": [
+					{
+						"label": "Globe",
+						"value": "earth"
+					},
+					{
+						"label": "Skull",
+						"value": "skull"
+					},
+					{
+						"label": "Drone",
+						"value": "drone"
+					},
+					{
+						"label": "Titan",
+						"value": "titan"
+					},
+					{
+						"label": "Vampire",
+						"value": "vampire"
+					},
+					{
+						"label": "Zombie",
+						"value": "zombie"
+					},
+					{
+						"label": "Human",
+						"value": "human"
+					}
+				]
+			},
+			"globespinspeed": {
+				"order": 50,
+				"text": "Orbital spin speed (%)",
+				"type": "slider",
+				"value": 100,
+				"min": 0,
+				"max": 400,
+				"step": 5
+			},
+			"ambient": {
+				"order": 51,
+				"text": "Ambient sound bed",
+				"type": "bool",
+				"value": false
+			},
+			"ambientvolume": {
+				"order": 52,
+				"text": "Ambient volume (%)",
+				"type": "slider",
+				"value": 25,
+				"min": 0,
+				"max": 100,
+				"step": 5
+			}
+		},
+		"supportsaudioprocessing": true
+	},
+	"title": "holo-nexus-hud - Copy",
+	"type": "web",
+	"version": 0
+}
