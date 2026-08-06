@@ -1146,7 +1146,7 @@ const VOICE = {
   listening: false,
   speaking: false,
   energy: 0,         // drives the jaw while talking
-  starts: 0, results: 0, errors: 0,
+  starts: 0, results: 0, errors: 0, netErrors: 0,
   since: 0,
 };
 function voiceDeclared() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
@@ -1181,7 +1181,7 @@ function startAssistant() {
     logEvent('> voice: microphone open', 0.85);
   };
   recog.onresult = (ev) => {
-    VOICE.results++;
+    VOICE.results++; VOICE.netErrors = 0;
     for (let i = ev.resultIndex; i < ev.results.length; i++) {
       const r = ev.results[i];
       const text = (r[0] && r[0].transcript || '').trim();
@@ -1199,14 +1199,31 @@ function startAssistant() {
     // which is the expected Wallpaper Engine outcome.
     if (code === 'not-allowed') { voiceSet('DENIED', code); logEvent('> voice: microphone permission denied', 0.6); recogWantOn = false; }
     else if (code === 'service-not-allowed') { voiceSet('NO SERVICE', code); logEvent('> voice: no speech service on this host', 0.6); recogWantOn = false; }
-    else if (code === 'no-speech' || code === 'aborted') { voiceSet('LISTENING', code); }
+    else if (code === 'no-speech' || code === 'aborted') { voiceSet('LISTENING', code); VOICE.netErrors = 0; }
+    else if (code === 'network') {
+      // The microphone opened, but the transcription service could not be
+      // reached. Chromium uploads audio to a speech backend, and embedded
+      // builds (Wallpaper Engine's CEF among them) ship without the API keys
+      // to reach it — so this is terminal, not transient. Retrying just
+      // reopens the microphone every second forever, which is what the first
+      // version of this did: it spun, burned CPU and filled the log.
+      VOICE.netErrors++;
+      if (VOICE.netErrors >= 3) {
+        recogWantOn = false;
+        voiceSet('NO SERVICE', 'network');
+        logEvent('> voice: mic works, speech service unreachable', 0.9);
+        logEvent('> voice: listening disabled — needs local STT', 0.7);
+      } else {
+        voiceSet('RETRY', 'network ' + VOICE.netErrors + '/3');
+      }
+    }
     else { voiceSet('ERROR', code); logEvent('> voice: error ' + code, 0.6); }
   };
   recog.onend = () => {
     VOICE.listening = false;
     // Continuous mode still stops on its own after silence; restart unless we
     // deliberately turned it off or the host told us it will never work.
-    if (recogWantOn) recogRetryAt = NOW + 400;
+    if (recogWantOn) recogRetryAt = NOW + 400 + VOICE.netErrors * 1200;
     else voiceSet(VOICE.status === 'LISTENING' ? 'READY' : VOICE.status);
   };
   recogWantOn = true;
