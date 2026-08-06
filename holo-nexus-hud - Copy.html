@@ -29,6 +29,26 @@
       radial-gradient(ellipse 95% 35% at 50% 100%, rgba(var(--accent-rgb),0.09) 0%, transparent 55%),
       linear-gradient(160deg, #04060a 0%, #05080f 55%, #020407 100%);
   }
+  /* Background picture. The dim layer sits between the photo and the scene:
+     a wallpaper HUD has to stay readable over an arbitrary image, and almost
+     no photo is dark or quiet enough on its own. */
+  body.bg-image {
+    background:
+      radial-gradient(ellipse at 50% 50%, rgba(var(--accent-rgb), var(--bg-wash, 0.05)) 0%, transparent 58%),
+      linear-gradient(rgba(2,4,8,var(--bg-dim, 0.45)), rgba(2,4,8,var(--bg-dim, 0.45))),
+      var(--bg-image, none),
+      linear-gradient(165deg, #04060a 0%, #05080f 55%, #020407 100%);
+    background-size: auto, auto, var(--bg-size, cover), auto;
+    background-position: center, center, center, center;
+    background-repeat: no-repeat, no-repeat, var(--bg-repeat, no-repeat), no-repeat;
+  }
+  /* Blur has to live on a backdrop element rather than on body's background,
+     since filter on body would blur the canvas and the panels with it. */
+  #bg-blur {
+    position: absolute; inset: 0; pointer-events: none; z-index: -1;
+    backdrop-filter: blur(var(--bg-blur, 0px));
+    -webkit-backdrop-filter: blur(var(--bg-blur, 0px));
+  }
   /* User-picked gradient. The accent wash on top is what keeps a hand-picked
      pair of colours feeling like part of the same scene as the subject,
      rather than an unrelated backdrop behind it. */
@@ -202,6 +222,8 @@
   .theme-row { display: flex; gap: 6px; flex-wrap: wrap; }
   .color-row { display: flex; gap: 10px; align-items: center; }
   .color-row label { font-size: 8.5px; letter-spacing: 0.6px; color: rgba(200,235,255,0.68); display: flex; align-items: center; gap: 5px; }
+  .file-btn { position: relative; overflow: hidden; text-align: center; }
+  .file-btn input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
   .color-row input[type=color] { width: 34px; height: 22px; padding: 0; border: 1px solid rgba(var(--accent-rgb),0.35); background: transparent; cursor: pointer; }
   .theme-dot { width: 21px; height: 21px; border-radius: 50%; cursor: pointer; border: 2px solid rgba(255,255,255,0.15); }
   .theme-dot.active { border-color: #fff; }
@@ -221,6 +243,7 @@
 </style>
 </head>
 <body class="bg-void">
+<div id="bg-blur"></div>
 <canvas id="c"></canvas>
 <div class="scanlines"></div>
 <div class="vignette"></div>
@@ -244,6 +267,16 @@
       <label>FROM <input type="color" id="bg-c1"></label>
       <label>TO <input type="color" id="bg-c2"></label>
     </div>
+    <h4 style="margin-top:10px;">Palettes</h4>
+    <div class="model-row" id="palette-row"></div>
+  </div>
+  <div id="image-only" style="display:none;">
+    <h4 style="margin-top:12px;">Picture</h4>
+    <div class="color-row">
+      <label class="btn file-btn">CHOOSE IMAGE<input type="file" id="bg-image-file" accept="image/*"></label>
+      <button class="btn" id="bg-image-clear">CLEAR</button>
+    </div>
+    <div class="model-row" id="bg-fit-row" style="margin-top:6px;"></div>
   </div>
   <div id="paper-only">
     <h4 style="margin-top:12px;">Ink</h4>
@@ -356,6 +389,21 @@ const PAPER_TEXTURES = {
 // and vertical offset: the globe is authored centred and roughly unit-sized,
 // while the head models sit high in their frame and would otherwise hang off
 // the top of the little panel.
+// Curated pairs, because two free colour pickers make it very easy to land on
+// a combination that fights the subject. Each of these was picked to sit
+// behind a lit point cloud without competing with it.
+const BG_PALETTES = {
+  midnight: { name: 'Midnight', c1: '#0b1a30', c2: '#02040a', angle: 165 },
+  ember:    { name: 'Ember',    c1: '#2b0f08', c2: '#0a0403', angle: 155 },
+  violet:   { name: 'Violet',   c1: '#241040', c2: '#05030d', angle: 175 },
+  forest:   { name: 'Forest',   c1: '#08221c', c2: '#020806', angle: 160 },
+  steel:    { name: 'Steel',    c1: '#1a2430', c2: '#05070a', angle: 180 },
+  rust:     { name: 'Rust',     c1: '#33180a', c2: '#0d0705', angle: 150 },
+  abyss:    { name: 'Abyss',    c1: '#04121e', c2: '#000103', angle: 170 },
+  wine:     { name: 'Wine',     c1: '#2a0a18', c2: '#080205', angle: 165 },
+};
+const BG_FITS = { cover: { name: 'Fill' }, contain: { name: 'Fit' }, tile: { name: 'Tile' } };
+
 const GLOBE_MODELS = {
   earth:   { name: 'Globe',   scale: 1.00, offY: 0.00 },
   skull:   { name: 'Skull',   scale: 0.78, offY: 0.20 },
@@ -372,6 +420,7 @@ const BG_STYLES = {
   aurora: { name: 'Aurora' },   // banded wash top and bottom
   paper:  { name: 'Paper' },    // warm parchment — the one light backdrop
   custom: { name: 'Custom' },   // user-picked gradient
+  image:  { name: 'Picture' },  // user-supplied photo
 };
 
 const PARTICLE_STYLES = {
@@ -472,6 +521,13 @@ const DEFAULT_CONFIG = {
   bgColor2: '#02040a',
   bgAngle: 165,
   bgWash: 45,            // % strength of the accent wash over the gradient
+  paperContrast: 190,    // % — lifts every HUD alpha while on paper
+  // Background picture. Held as a downscaled data URL in its own storage
+  // key, not in the main config blob, so a big image cannot blow the quota
+  // for every other setting.
+  bgImageFit: 'cover',   // 'cover' | 'contain' | 'tile'
+  bgImageDim: 45,        // % — how far the picture is dimmed toward the base
+  bgImageBlur: 0,        // px
   ambient: false,
   ambientVolume: 25,     // %
   globeModel: 'earth',   // which baked model rides the small orbital instrument
@@ -535,7 +591,7 @@ const SMOOTH_KEYS = [
   'modelX', 'modelY', 'projectorX', 'projectorY', 'projectorZ', 'hueShift',
   'reticleX', 'reticleY', 'reticleScale', 'reticleSpin', 'reticleDetail',
   'modelSpinSpeed', 'clockX', 'clockY', 'hudLeftX', 'hudLeftY', 'subjectOpacity',
-  'hudRightX', 'hudRightY', 'hudColW', 'hudTextTint', 'globeSpinSpeed', 'ambientVolume', 'bgAngle', 'bgWash',
+  'hudRightX', 'hudRightY', 'hudColW', 'hudTextTint', 'globeSpinSpeed', 'ambientVolume', 'bgAngle', 'bgWash', 'paperContrast', 'bgImageDim', 'bgImageBlur',
 ];
 const SMOOTH = {};
 function initSmooth() { SMOOTH_KEYS.forEach((k) => { SMOOTH[k] = CONFIG[k]; }); }
@@ -1967,7 +2023,14 @@ const FONT_STACKS = {
 function fontSet() { return FONT_STACKS[CONFIG.hudFont] || FONT_STACKS.mono; }
 function fontMono() { return fontSet().mono; }
 function fontDisplay() { return fontSet().display; }
-function acc(a) { return `rgba(${theme().accent}, ${Math.min(1, a * HUD_K)})`; }
+// Every alpha in this file was chosen for additive light on black, where
+// 0.14 still reads as a visible glow. Laid down as dark ink on a cream sheet
+// the same 0.14 is nearly invisible — which is why the paper theme looked
+// washed out no matter how the ink colour was set. On paper the alphas are
+// scaled up by a single controllable factor rather than being retuned in
+// several hundred call sites.
+function paperK() { return isPaper() ? (SMOOTH.paperContrast ?? 190) / 100 : 1; }
+function acc(a) { return `rgba(${theme().accent}, ${Math.min(1, a * HUD_K * paperK())})`; }
 // Non-accent HUD ink (values, warnings, status greens) has to scale with
 // the same control, or raising panel brightness would lift only the chrome
 // and leave the numbers behind.
@@ -2006,7 +2069,7 @@ function ink(a, rgb) {
   if (isPaper()) base = rgb ? darkenRGB(rgb) : '40,36,32';
   else base = rgb || '226,247,255';
   base = tintToward(base, theme().accent, (SMOOTH.hudTextTint ?? 0) / 100);
-  return 'rgba(' + base + ',' + Math.min(1, a * HUD_K) + ')';
+  return 'rgba(' + base + ',' + Math.min(1, a * HUD_K * paperK()) + ')';
 }
 // Proximity response: panels near the cursor lift slightly. This is the
 // "nearby HUD elements respond" behaviour — it costs nothing when the
@@ -3303,6 +3366,64 @@ const RING_STYLES = {
   sonar:   { name: 'Sonar' },
 };
 const CLOCK_POSITIONS = { left: { name: 'Left' }, center: { name: 'Center' }, right: { name: 'Right' } };
+// ---------- Background picture ----------
+// Stored under its own localStorage key rather than inside the settings blob:
+// a picture is orders of magnitude larger than every other setting combined,
+// and sharing a key would mean one oversized image takes the whole config
+// down with it. Re-encoded to a bounded JPEG first for the same reason — a
+// 12MP phone photo as a raw data URL will not fit in the quota.
+const BG_IMAGE_KEY = 'holoNexusBgImage';
+const BG_IMAGE_MAX = 1920;
+let bgImageData = null;
+try { bgImageData = localStorage.getItem(BG_IMAGE_KEY); } catch (e) { bgImageData = null; }
+function setBgImage(dataUrl) {
+  bgImageData = dataUrl;
+  try {
+    if (dataUrl) localStorage.setItem(BG_IMAGE_KEY, dataUrl);
+    else localStorage.removeItem(BG_IMAGE_KEY);
+  } catch (e) {
+    // Quota is the expected failure here, and it must not be silent: the
+    // picture still applies for this session, it just will not persist.
+    logEvent('> background: image too large to save', 0.6);
+  }
+  applyDomSettings();
+}
+function loadBgImageFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, BG_IMAGE_MAX / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      let out;
+      try { out = c.toDataURL('image/jpeg', 0.82); }
+      catch (e) { out = reader.result; }   // tainted or unsupported: fall back to the original
+      setBgImage(out);
+      CONFIG.bgStyle = 'image';
+      saveConfig();
+      renderBgRow();
+      logEvent('> background: picture loaded ' + w + 'x' + h, 0.8);
+    };
+    img.onerror = () => logEvent('> background: not a readable image', 0.5);
+    img.src = reader.result;
+  };
+  reader.onerror = () => logEvent('> background: could not read file', 0.5);
+  reader.readAsDataURL(file);
+}
+let bgImageBound = false;
+function bindBgImageInput() {
+  if (bgImageBound) return;
+  const inp = document.getElementById('bg-image-file');
+  const clr = document.getElementById('bg-image-clear');
+  if (inp) inp.addEventListener('change', () => { loadBgImageFile(inp.files && inp.files[0]); inp.value = ''; });
+  if (clr) clr.addEventListener('click', () => { setBgImage(null); logEvent('> background: picture cleared', 0.5); });
+  bgImageBound = true;
+}
 // Wallpaper Engine hands colours back as "r g b" floats in 0..1, while the
 // DOM colour input speaks "#rrggbb". Both directions are needed because the
 // same setting is reachable from either place.
@@ -3330,8 +3451,30 @@ function bindColorInputs() {
   });
   colorInputsBound = true;
 }
+// Applying a palette writes the same two colours the pickers edit, so the
+// presets and the manual controls stay one setting rather than two.
+function renderPaletteRow() {
+  const row = document.getElementById('palette-row');
+  if (!row) return;
+  row.innerHTML = '';
+  Object.entries(BG_PALETTES).forEach(([key, p]) => {
+    const el = document.createElement('div');
+    el.className = 'model-btn';
+    el.textContent = p.name;
+    el.style.borderColor = p.c1;
+    el.addEventListener('click', () => {
+      CONFIG.bgColor1 = p.c1; CONFIG.bgColor2 = p.c2; CONFIG.bgAngle = p.angle;
+      SMOOTH.bgAngle = p.angle;
+      saveConfig(); applyDomSettings(); refreshSettingsUI();
+    });
+    row.appendChild(el);
+  });
+}
 function renderChromeRows() {
   bindColorInputs();
+  bindBgImageInput();
+  renderPickRow('bg-fit-row', BG_FITS, 'bgImageFit');
+  renderPaletteRow();
   renderPickRow('ring-row', RING_STYLES, 'reticleStyle');
   renderPickRow('font-row', FONT_STACKS, 'hudFont');
   renderPickRow('clockpos-row', CLOCK_POSITIONS, 'clockPos');
@@ -3458,6 +3601,8 @@ const SETTING_GROUPS = [
       ['bgParticles', 'Background particles', 0, 10130, '', 10, { rebuildStars: true }],
       ['bgAngle', 'Gradient angle', 0, 360, '°', 5],
       ['bgWash', 'Gradient accent wash', 0, 100, '%', 5],
+      ['bgImageDim', 'Picture dim', 0, 95, '%', 5],
+      ['bgImageBlur', 'Picture blur', 0, 24, 'px', 1],
     ],
     toggles: [] },
   { title: 'Mouse & Look', open: true,
@@ -3504,6 +3649,7 @@ const SETTING_GROUPS = [
       ['shimmerAmount', 'Shimmer', 0, 200, '%', 1],
       // Paper only: how hard the pencil presses on the subject.
       ['inkStrength', 'Ink strength', 20, 200, '%', 1, { redraw: true }],
+      ['paperContrast', 'Paper contrast', 100, 320, '%', 5],
       ['glitchFreq', 'Glitch frequency', 0, 300, '%', 1],
       ['glitchSize', 'Glitch size', 0, 300, '%', 1],
     ],
@@ -3587,6 +3733,14 @@ function applyDomSettings() {
   rootStyle.setProperty('--bg-wash', ((SMOOTH.bgWash ?? 45) / 100 * 0.22).toFixed(3));
   const cw = document.getElementById('custom-only');
   if (cw) cw.style.display = CONFIG.bgStyle === 'custom' ? '' : 'none';
+  const iw = document.getElementById('image-only');
+  if (iw) iw.style.display = CONFIG.bgStyle === 'image' ? '' : 'none';
+  rootStyle.setProperty('--bg-image', bgImageData ? 'url("' + bgImageData + '")' : 'none');
+  rootStyle.setProperty('--bg-dim', ((SMOOTH.bgImageDim ?? 45) / 100).toFixed(3));
+  rootStyle.setProperty('--bg-blur', (SMOOTH.bgImageBlur ?? 0).toFixed(1) + 'px');
+  const fit = CONFIG.bgImageFit;
+  rootStyle.setProperty('--bg-size', fit === 'contain' ? 'contain' : (fit === 'tile' ? 'auto' : 'cover'));
+  rootStyle.setProperty('--bg-repeat', fit === 'tile' ? 'repeat' : 'no-repeat');
   const c1 = document.getElementById('bg-c1'), c2 = document.getElementById('bg-c2');
   if (c1 && c1.value !== CONFIG.bgColor1) c1.value = CONFIG.bgColor1;
   if (c2 && c2.value !== CONFIG.bgColor2) c2.value = CONFIG.bgColor2;
@@ -3925,6 +4079,10 @@ function handleWEProperties(properties) {
   if (P.bgangle !== undefined) CONFIG.bgAngle = Number(val(P.bgangle));
   if (P.bgwash !== undefined) CONFIG.bgWash = Number(val(P.bgwash));
   if (P.animatednumbers !== undefined) CONFIG.animatedNumbers = !!val(P.animatednumbers);
+  if (P.papercontrast !== undefined) CONFIG.paperContrast = Number(val(P.papercontrast));
+  if (P.bgimagefit && val(P.bgimagefit)) CONFIG.bgImageFit = val(P.bgimagefit);
+  if (P.bgimagedim !== undefined) CONFIG.bgImageDim = Number(val(P.bgimagedim));
+  if (P.bgimageblur !== undefined) CONFIG.bgImageBlur = Number(val(P.bgimageblur));
   if (P.density !== undefined && Number(val(P.density)) !== CONFIG.density) {
     CONFIG.density = Number(val(P.density));
     modelChanged = true;   // density is baked into the point list, so re-run the build

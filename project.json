@@ -110,6 +110,10 @@
 					{
 						"label": "Custom gradient",
 						"value": "custom"
+					},
+					{
+						"label": "Picture",
+						"value": "image"
 					}
 				]
 			},
@@ -687,6 +691,53 @@
 				"text": "Animated readouts",
 				"type": "bool",
 				"value": true
+			},
+			"papercontrast": {
+				"order": 58,
+				"text": "Paper: contrast (%)",
+				"type": "slider",
+				"value": 190,
+				"min": 100,
+				"max": 320,
+				"step": 5
+			},
+			"bgimagefit": {
+				"order": 59,
+				"text": "Picture fit",
+				"type": "combo",
+				"value": "cover",
+				"options": [
+					{
+						"label": "Fill",
+						"value": "cover"
+					},
+					{
+						"label": "Fit",
+						"value": "contain"
+					},
+					{
+						"label": "Tile",
+						"value": "tile"
+					}
+				]
+			},
+			"bgimagedim": {
+				"order": 60,
+				"text": "Picture dim (%)",
+				"type": "slider",
+				"value": 45,
+				"min": 0,
+				"max": 95,
+				"step": 5
+			},
+			"bgimageblur": {
+				"order": 61,
+				"text": "Picture blur (px)",
+				"type": "slider",
+				"value": 0,
+				"min": 0,
+				"max": 24,
+				"step": 1
 			}
 		},
 		"supportsaudioprocessing": true
