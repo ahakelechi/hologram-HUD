@@ -222,6 +222,12 @@
   .theme-row { display: flex; gap: 6px; flex-wrap: wrap; }
   .color-row { display: flex; gap: 10px; align-items: center; }
   .color-row label { font-size: 8.5px; letter-spacing: 0.6px; color: rgba(200,235,255,0.68); display: flex; align-items: center; gap: 5px; }
+  .hexin { width: 66px; background: rgba(var(--accent-rgb),0.06); border: 1px solid rgba(var(--accent-rgb),0.3); color: var(--text); font: 9px 'Share Tech Mono', monospace; padding: 3px 4px; }
+  .ck { font-size: 8.5px; letter-spacing: 0.6px; color: rgba(200,235,255,0.68); padding: 2px 4px; cursor: pointer; border: 1px solid transparent; }
+  .ck.sel { border-color: rgba(var(--accent-rgb),0.55); color: rgb(var(--accent-rgb)); }
+  .swatch-row { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
+  .swatch { width: 16px; height: 16px; cursor: pointer; border: 1px solid rgba(255,255,255,0.16); }
+  .swatch:hover { border-color: #fff; }
   .mic-btn-big { width: 100%; font-size: 10px; letter-spacing: 1px; padding: 7px 6px; }
   .voice-status { font-size: 8.5px; letter-spacing: 1px; padding: 4px 6px; border: 1px solid rgba(var(--accent-rgb),0.3); color: rgb(var(--accent-rgb)); opacity: 0.85; }
   .color-row input[type=text], .color-row select { background: rgba(var(--accent-rgb),0.06); border: 1px solid rgba(var(--accent-rgb),0.3); color: var(--text); font: 9px "Share Tech Mono", monospace; padding: 3px 4px; max-width: 150px; }
@@ -266,10 +272,19 @@
   <div class="model-row" id="bg-row"></div>
   <div id="custom-only" style="display:none;">
     <h4 style="margin-top:12px;">Gradient</h4>
+    <!-- Swatches and a hex field rather than <input type="color">. A native
+         colour input asks the browser to open the operating system's colour
+         chooser, and Wallpaper Engine's embedded browser registers no handler
+         for that — the renderer aborts with STATUS_ILLEGAL_INSTRUCTION the
+         moment the control is created. Same reason the file picker below is
+         kept out of the wallpaper. -->
     <div class="color-row">
-      <label>FROM <input type="color" id="bg-c1"></label>
-      <label>TO <input type="color" id="bg-c2"></label>
+      <span class="ck" id="ck-1">FROM</span>
+      <input type="text" class="hexin" id="bg-c1" spellcheck="false" maxlength="7">
+      <span class="ck" id="ck-2">TO</span>
+      <input type="text" class="hexin" id="bg-c2" spellcheck="false" maxlength="7">
     </div>
+    <div class="swatch-row" id="swatch-row"></div>
     <h4 style="margin-top:10px;">Palettes</h4>
     <div class="model-row" id="palette-row"></div>
   </div>
@@ -280,7 +295,10 @@
       <label>WAKE <input type="text" id="wake-word" spellcheck="false"></label>
     </div>
     <div class="color-row" style="margin-top:6px;">
-      <label>VOICE <select id="voice-pick"></select></label>
+      <span class="ck">VOICE</span>
+    </div>
+    <div class="model-row" id="voice-list"></div>
+    <div class="color-row" style="margin-top:6px;">
     </div>
     <div class="model-row" id="stt-row" style="margin-top:6px;"></div>
     <button class="btn mic-btn-big" id="listen-toggle" style="margin-top:6px;">🎙 START LISTENING</button>
@@ -289,7 +307,7 @@
   <div id="image-only" style="display:none;">
     <h4 style="margin-top:12px;">Picture</h4>
     <div class="color-row">
-      <label class="btn file-btn">CHOOSE IMAGE<input type="file" id="bg-image-file" accept="image/*"></label>
+      <span class="btn file-btn" id="bg-image-pick">CHOOSE IMAGE</span>
       <button class="btn" id="bg-image-clear">CLEAR</button>
     </div>
     <div class="model-row" id="bg-fit-row" style="margin-top:6px;"></div>
@@ -665,6 +683,11 @@ function hueShiftRGB(rgbStr, deg) {
 // Paper is not just another backdrop: it inverts the whole rendering model
 // from light emitted on black to pigment laid on a lit sheet. Enough code
 // branches on it that it gets its own predicate.
+// Wallpaper Engine's embedded browser cannot open OS dialogs (colour
+// choosers, file pickers, native dropdowns) — attempting it aborts the
+// renderer with STATUS_ILLEGAL_INSTRUCTION. Anything that would need one is
+// gated on this.
+function isWallpaperEngine() { return !!window.wallpaperRegisterAudioListener; }
 function isPaper() { return CONFIG.bgStyle === 'paper'; }
 // Every additive layer has to stop adding light on paper — 'lighter' there
 // drives the sheet toward white, which is the opposite of a mark.
@@ -3775,10 +3798,40 @@ function loadBgImageFile(file) {
 let bgImageBound = false;
 function bindBgImageInput() {
   if (bgImageBound) return;
-  const inp = document.getElementById('bg-image-file');
+  const pick = document.getElementById('bg-image-pick');
   const clr = document.getElementById('bg-image-clear');
-  if (inp) inp.addEventListener('change', () => { loadBgImageFile(inp.files && inp.files[0]); inp.value = ''; });
   if (clr) clr.addEventListener('click', () => { setBgImage(null); logEvent('> background: picture cleared', 0.5); });
+  if (pick) {
+    if (isWallpaperEngine()) {
+      // A file dialog is an OS window the host has to open on the page's
+      // behalf, and Wallpaper Engine does not — it takes the renderer down.
+      // The picture still works here; it just has to be chosen somewhere the
+      // dialog is allowed to appear.
+      // Belt and braces: if one was ever created (a re-bind, a host that only
+      // reveals itself late), take it out of the document rather than leave a
+      // control here that could open a dialog.
+      document.querySelectorAll('input[type=file]').forEach((n) => n.remove());
+      pick.textContent = 'SET FROM BROWSER';
+      pick.style.opacity = '0.55';
+      pick.style.cursor = 'default';
+      pick.title = 'File dialogs cannot open inside Wallpaper Engine. '
+        + 'Open index.html in a browser, choose the picture there, and it will be used here too.';
+      pick.addEventListener('click', () => {
+        logEvent('> background: pick the picture in a browser, not here', 0.6);
+      });
+    } else {
+      // The input is created on demand rather than living in the markup, so
+      // the element never exists at all in the host that cannot handle it.
+      const inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = 'image/*';
+      inp.style.display = 'none';
+      document.body.appendChild(inp);
+      inp.addEventListener('change', () => { loadBgImageFile(inp.files && inp.files[0]); inp.value = ''; });
+      pick.style.cursor = 'pointer';
+      pick.addEventListener('click', () => inp.click());
+    }
+  }
   bgImageBound = true;
 }
 // Wallpaper Engine hands colours back as "r g b" floats in 0..1, while the
@@ -3793,20 +3846,59 @@ function weColorToHex(v) {
     return n.toString(16).padStart(2, '0');
   }).join('');
 }
+// Which of the two gradient stops a swatch click applies to.
+let activeStop = 'bgColor1';
+// A spread wide enough to build most things from, plus the palette colours.
+const SWATCHES = [
+  '#000000', '#0b1a30', '#04121e', '#1a2430', '#241040', '#2b0f08', '#33180a', '#08221c',
+  '#2a0a18', '#3a3a3a', '#0a2f4a', '#123a5a', '#4a1020', '#12304a', '#204020', '#402a10',
+  '#7a3b12', '#1f6f8b', '#8b1f3a', '#2f8b5a', '#8b7a1f', '#5a2f8b', '#c9a878', '#e9dfc8',
+];
+function isHex(v) { return /^#[0-9a-fA-F]{6}$/.test(v); }
 let colorInputsBound = false;
 function bindColorInputs() {
   if (colorInputsBound) return;
-  [['bg-c1', 'bgColor1'], ['bg-c2', 'bgColor2']].forEach(([id, key]) => {
+  [['bg-c1', 'bgColor1', 'ck-1'], ['bg-c2', 'bgColor2', 'ck-2']].forEach(([id, key, ckId]) => {
     const el = document.getElementById(id);
+    const ck = document.getElementById(ckId);
     if (!el) return;
     el.value = CONFIG[key];
+    if (ck) {
+      ck.style.borderLeft = '10px solid ' + CONFIG[key];
+      ck.addEventListener('click', () => { activeStop = key; paintStopSelection(); });
+    }
+    el.addEventListener('focus', () => { activeStop = key; paintStopSelection(); });
     el.addEventListener('input', () => {
+      // Only commit a complete colour, so half-typed hex does not repaint.
+      if (!isHex(el.value)) return;
       CONFIG[key] = el.value;
       saveConfig();
       applyDomSettings();
     });
   });
+  const row = document.getElementById('swatch-row');
+  if (row) {
+    row.innerHTML = '';
+    SWATCHES.forEach((hex) => {
+      const s = document.createElement('div');
+      s.className = 'swatch';
+      s.style.background = hex;
+      s.title = hex;
+      s.addEventListener('click', () => {
+        CONFIG[activeStop] = hex;
+        saveConfig();
+        applyDomSettings();
+      });
+      row.appendChild(s);
+    });
+  }
+  paintStopSelection();
   colorInputsBound = true;
+}
+function paintStopSelection() {
+  const a = document.getElementById('ck-1'), b = document.getElementById('ck-2');
+  if (a) a.classList.toggle('sel', activeStop === 'bgColor1');
+  if (b) b.classList.toggle('sel', activeStop === 'bgColor2');
 }
 // Applying a palette writes the same two colours the pickers edit, so the
 // presets and the manual controls stay one setting rather than two.
@@ -3830,21 +3922,26 @@ function renderPaletteRow() {
 // The voice list arrives asynchronously in most browsers, so it is populated
 // both now and on the voiceschanged event.
 let voiceUIBound = false;
+// A row of buttons rather than a <select>. Native dropdowns are another
+// OS-level popup the embedded browser has to service, and this panel now
+// avoids all of them on principle.
 function fillVoiceList() {
-  const sel = document.getElementById('voice-pick');
-  if (!sel || !window.speechSynthesis) return;
+  const row = document.getElementById('voice-list');
+  if (!row || !window.speechSynthesis) return;
   const voices = window.speechSynthesis.getVoices() || [];
-  if (!voices.length) return;
-  sel.innerHTML = '';
-  const auto = document.createElement('option');
-  auto.value = ''; auto.textContent = 'Automatic';
-  sel.appendChild(auto);
-  voices.forEach((v) => {
-    const o = document.createElement('option');
-    o.value = v.name; o.textContent = v.name.slice(0, 28);
-    sel.appendChild(o);
-  });
-  sel.value = CONFIG.assistantVoice || '';
+  row.innerHTML = '';
+  const add = (label, value) => {
+    const el = document.createElement('div');
+    el.className = 'model-btn' + ((CONFIG.assistantVoice || '') === value ? ' active' : '');
+    el.textContent = label;
+    el.title = value || 'Let the system choose';
+    el.addEventListener('click', () => {
+      CONFIG.assistantVoice = value; saveConfig(); fillVoiceList();
+    });
+    row.appendChild(el);
+  };
+  add('Auto', '');
+  voices.forEach((v) => add(v.name.replace(/^Microsoft\s+/i, '').split(' ')[0].slice(0, 14), v.name));
 }
 function updateVoiceStatusEl() {
   const el = document.getElementById('voice-status');
@@ -4153,9 +4250,13 @@ function applyDomSettings() {
   const fit = CONFIG.bgImageFit;
   rootStyle.setProperty('--bg-size', fit === 'contain' ? 'contain' : (fit === 'tile' ? 'auto' : 'cover'));
   rootStyle.setProperty('--bg-repeat', fit === 'tile' ? 'repeat' : 'no-repeat');
+  // Don't fight the user mid-type: only refresh a hex field it isn't in.
   const c1 = document.getElementById('bg-c1'), c2 = document.getElementById('bg-c2');
-  if (c1 && c1.value !== CONFIG.bgColor1) c1.value = CONFIG.bgColor1;
-  if (c2 && c2.value !== CONFIG.bgColor2) c2.value = CONFIG.bgColor2;
+  if (c1 && document.activeElement !== c1 && c1.value !== CONFIG.bgColor1) c1.value = CONFIG.bgColor1;
+  if (c2 && document.activeElement !== c2 && c2.value !== CONFIG.bgColor2) c2.value = CONFIG.bgColor2;
+  const k1 = document.getElementById('ck-1'), k2 = document.getElementById('ck-2');
+  if (k1) k1.style.borderLeft = '10px solid ' + CONFIG.bgColor1;
+  if (k2) k2.style.borderLeft = '10px solid ' + CONFIG.bgColor2;
 }
 
 function settingChanged(opts) {
