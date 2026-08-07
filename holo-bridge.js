@@ -16,6 +16,8 @@
 const http = require('http');
 const crypto = require('crypto');
 const readline = require('readline');
+const path = require('path');
+const { spawn } = require('child_process');
 
 const PORT = Number(process.argv[2]) || 8787;
 const HOST = '127.0.0.1';
@@ -94,11 +96,73 @@ function log(msg) {
   process.stdout.write('[' + t + '] ' + msg + '\n');
 }
 
+// --- the listener, owned by the bridge ----------------------------------
+// A web page cannot start a process, so the wallpaper asks the bridge to do
+// it. That means the bridge is the one thing that has to be running, and the
+// microphone can then be turned on and off from the wallpaper's own UI
+// instead of by hunting for a batch file.
+let listener = null;
+let listenModel = 'small';
+
+function pythonExe() {
+  // The bundled launcher path first, then whatever is on PATH.
+  const local = process.env.LOCALAPPDATA
+    ? path.join(process.env.LOCALAPPDATA, 'Programs', 'Python', 'Python310', 'python.exe')
+    : null;
+  return local && require('fs').existsSync(local) ? local : 'python';
+}
+
+function listenerStatus() {
+  return { type: 'listen-status', running: !!listener, model: listenModel };
+}
+
+function startListener(model) {
+  if (listener) return true;
+  listenModel = model || listenModel;
+  const script = path.join(__dirname, 'holo-listen.py');
+  if (!require('fs').existsSync(script)) { log('holo-listen.py not found next to the bridge'); return false; }
+  try {
+    listener = spawn(pythonExe(), [script, '--model', listenModel, '--port', String(PORT)],
+                     { cwd: __dirname, windowsHide: true });
+  } catch (e) {
+    log('could not start listener: ' + e.message);
+    listener = null;
+    return false;
+  }
+  log('listener started (' + listenModel + ')');
+  // Its output is echoed here so there is still one place to watch, rather
+  // than a hidden process failing silently.
+  const echo = (buf) => String(buf).split(/\r?\n/).forEach((l) => { if (l.trim()) log('  listen| ' + l.trim()); });
+  listener.stdout.on('data', echo);
+  listener.stderr.on('data', echo);
+  listener.on('exit', (code) => {
+    log('listener stopped' + (code ? ' (exit ' + code + ')' : ''));
+    listener = null;
+    broadcast(listenerStatus());
+  });
+  broadcast(listenerStatus());
+  return true;
+}
+
+function stopListener() {
+  if (!listener) return;
+  try { listener.kill(); } catch (e) {}
+  listener = null;
+  broadcast(listenerStatus());
+}
+
 // --- HTTP: health, and a POST hook so anything can push text -------------
 const server = http.createServer((req, res) => {
   if (req.method === 'GET' && (req.url === '/' || req.url === '/status')) {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, clients: clients.size, port: PORT }));
+    res.end(JSON.stringify({ ok: true, clients: clients.size, port: PORT, listening: !!listener, model: listenModel }));
+    return;
+  }
+  if (req.method === 'POST' && (req.url === '/listen/start' || req.url === '/listen/stop')) {
+    const on = req.url.endsWith('start');
+    const ok = on ? startListener() : (stopListener(), true);
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: ok, listening: !!listener }));
     return;
   }
   if (req.method === 'POST' && req.url === '/say') {
@@ -135,19 +199,32 @@ server.on('upgrade', (req, socket) => {
     if (clients.delete(socket)) log('client disconnected  (' + clients.size + ' left)');
     try { socket.destroy(); } catch (e) {}
   };
+  try { socket.write(encodeFrame(JSON.stringify(listenerStatus()))); } catch (e) {}
   socket.on('data', makeFrameReader((text) => {
     let msg = null;
     try { msg = JSON.parse(text); } catch (e) { return; }
-    if (msg && msg.type === 'reply') log('<- reply: ' + JSON.stringify(msg.text));
+    if (!msg) return;
+    if (msg.type === 'reply') log('<- reply: ' + JSON.stringify(msg.text));
+    // The wallpaper's microphone button arrives here.
+    else if (msg.type === 'listen') {
+      if (msg.on) startListener(msg.model); else stopListener();
+    }
+    else if (msg.type === 'status') {
+      try { socket.write(encodeFrame(JSON.stringify(listenerStatus()))); } catch (e) {}
+    }
   }, drop));
   socket.on('error', drop);
   socket.on('close', drop);
 });
 
+process.on('SIGINT', () => { stopListener(); process.exit(0); });
+process.on('exit', () => { try { stopListener(); } catch (e) {} });
+
 server.listen(PORT, HOST, () => {
   log('holo-bridge listening on ws://' + HOST + ':' + PORT);
   log('type a line to send it to the wallpaper, or:');
   log('  curl -X POST http://' + HOST + ':' + PORT + '/say -d "nexus what time is it"');
+  log('the wallpaper can start the microphone itself - no need to run anything else');
   log('ctrl-c to stop');
 });
 server.on('error', (e) => {

@@ -97,18 +97,27 @@ process, and the recognised text is sent to the wallpaper over a local
 socket. Everything after that - wake word, answers, replies, the mouth - is
 the same code path as normal.
 
-Easiest way - double-click start-jarvis.bat. It opens both pieces, then turn
-on "Local voice bridge" in the wallpaper and start talking.
+Start the bridge once - double-click start-bridge.bat, or add it to Windows
+startup with install-startup.bat so it is always there.
 
-By hand, if you prefer:
+Everything else is a button in the wallpaper:
 
-  1. Open a terminal in this folder
-  2. node holo-bridge.js
-  3. python holo-listen.py            (in a second terminal, for speech)
-  4. In the wallpaper, turn on "Local voice bridge"
-     (settings panel, or Wallpaper Engine properties)
+  Settings -> Voice -> START LISTENING
 
-The bottom ticker shows BRIDGE LINKED when connected.
+That button turns the microphone on and off. The wallpaper cannot launch a
+program itself, so it asks the bridge to do it - which is why the bridge is
+the one piece that has to be running. If it is not, the button says
+BRIDGE OFFLINE instead of pretending to work.
+
+The bottom ticker shows BRIDGE LINKED, and BRIDGE LINKED/MIC while listening.
+
+Speech model is picked right above that button:
+
+  Tiny    fastest, least accurate      (~1s per phrase)
+  Small   balanced, the default        (~2s)
+  Medium  most accurate, needs ~1.5GB  (~6s)
+
+Changing it restarts the listener on the new model.
 
 
 SPEECH TO TEXT (holo-listen.py)

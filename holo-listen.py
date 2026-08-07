@@ -108,20 +108,42 @@ def post(url, text, dry):
         log("post failed: %s" % e)
 
 
+# Bigger models are better but need the memory to be there. On a busy machine
+# `medium` can fail to allocate outright, so rather than dying with a
+# traceback the loader steps down through smaller models until one fits.
+SMALLER = {"large-v3": "medium", "large": "medium", "medium": "small",
+           "small": "base", "base": "tiny", "tiny": None}
+
+
 def load_model(name, prefer_gpu):
     from faster_whisper import WhisperModel
-    # CTranslate2 needs its own CUDA runtime, which is separate from torch's -
-    # so GPU is attempted and quietly dropped rather than assumed to work.
-    if prefer_gpu:
+    tried = []
+    while name:
+        # CTranslate2 needs its own CUDA runtime, separate from torch's - so
+        # GPU is attempted and quietly dropped rather than assumed to work.
+        if prefer_gpu:
+            try:
+                m = WhisperModel(name, device="cuda", compute_type="float16")
+                log("model '%s' on gpu" % name)
+                return m
+            except Exception as e:
+                log("gpu unavailable (%s); using cpu" % str(e).split("\n")[0][:60])
         try:
-            m = WhisperModel(name, device="cuda", compute_type="float16")
-            log("model '%s' on gpu" % name)
+            m = WhisperModel(name, device="cpu", compute_type="int8")
+            log("model '%s' on cpu (int8)" % name)
+            if tried:
+                log("note: fell back from %s - not enough free memory" % ", ".join(tried))
             return m
-        except Exception as e:
-            log("gpu unavailable (%s); using cpu" % str(e).split("\n")[0][:60])
-    m = WhisperModel(name, device="cpu", compute_type="int8")
-    log("model '%s' on cpu (int8)" % name)
-    return m
+        except (RuntimeError, MemoryError) as e:
+            msg = str(e).split("\n")[0][:80]
+            tried.append(name)
+            nxt = SMALLER.get(name)
+            if not nxt:
+                log("could not load any model (%s)" % msg)
+                raise SystemExit(1)
+            log("'%s' would not load (%s); trying '%s'" % (name, msg, nxt))
+            name = nxt
+    raise SystemExit(1)
 
 
 def transcribe(model, audio, np):

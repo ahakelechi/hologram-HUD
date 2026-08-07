@@ -222,6 +222,7 @@
   .theme-row { display: flex; gap: 6px; flex-wrap: wrap; }
   .color-row { display: flex; gap: 10px; align-items: center; }
   .color-row label { font-size: 8.5px; letter-spacing: 0.6px; color: rgba(200,235,255,0.68); display: flex; align-items: center; gap: 5px; }
+  .mic-btn-big { width: 100%; font-size: 10px; letter-spacing: 1px; padding: 7px 6px; }
   .voice-status { font-size: 8.5px; letter-spacing: 1px; padding: 4px 6px; border: 1px solid rgba(var(--accent-rgb),0.3); color: rgb(var(--accent-rgb)); opacity: 0.85; }
   .color-row input[type=text], .color-row select { background: rgba(var(--accent-rgb),0.06); border: 1px solid rgba(var(--accent-rgb),0.3); color: var(--text); font: 9px "Share Tech Mono", monospace; padding: 3px 4px; max-width: 150px; }
   .file-btn { position: relative; overflow: hidden; text-align: center; }
@@ -281,6 +282,8 @@
     <div class="color-row" style="margin-top:6px;">
       <label>VOICE <select id="voice-pick"></select></label>
     </div>
+    <div class="model-row" id="stt-row" style="margin-top:6px;"></div>
+    <button class="btn mic-btn-big" id="listen-toggle" style="margin-top:6px;">🎙 START LISTENING</button>
     <button class="btn" id="voice-test" style="margin-top:6px;">TEST VOICE</button>
   </div>
   <div id="image-only" style="display:none;">
@@ -547,6 +550,7 @@ const DEFAULT_CONFIG = {
   // recognised text here. This is the path that works inside Wallpaper Engine.
   bridge: false,
   bridgePort: 8787,
+  sttModel: 'small',     // whisper model the listener loads: tiny | small | medium
   assistant: false,
   assistantSpeak: true,
   assistantVolume: 90,
@@ -1266,7 +1270,7 @@ function voiceTick() {
 // arrives here. Everything downstream — wake word, brain, reply, lip sync —
 // is the same code the in-page recogniser feeds, so there is one path to
 // maintain rather than two.
-const BRIDGE = { status: 'OFF', tries: 0, lastAt: 0 };
+const BRIDGE = { status: 'OFF', tries: 0, lastAt: 0, listening: false, model: 'small' };
 let bridgeSock = null, bridgeRetryAt = 0;
 function bridgeUrl() { return 'ws://127.0.0.1:' + (CONFIG.bridgePort || 8787); }
 function connectBridge() {
@@ -1279,12 +1283,20 @@ function connectBridge() {
   s.onopen = () => {
     BRIDGE.status = 'LINKED'; BRIDGE.tries = 0;
     logEvent('> bridge: linked on port ' + (CONFIG.bridgePort || 8787), 0.85);
+    updateListenButton();
     fire('panel-link', 1200); spawnPackets('link', 4);
   };
   s.onmessage = (ev) => {
     let msg = null;
     try { msg = JSON.parse(ev.data); } catch (e) { return; }
     if (!msg) return;
+    if (msg.type === 'listen-status') {
+      BRIDGE.listening = !!msg.running;
+      if (msg.model) BRIDGE.model = msg.model;
+      updateListenButton();
+      logEvent(BRIDGE.listening ? '> mic: listening (' + BRIDGE.model + ')' : '> mic: idle', 0.8);
+      return;
+    }
     if (msg.type === 'utterance' && msg.text) {
       BRIDGE.lastAt = NOW;
       // Straight into the same handler the in-page recogniser uses.
@@ -1301,6 +1313,7 @@ function connectBridge() {
     const wait = Math.min(30000, 1000 * Math.pow(1.8, Math.min(BRIDGE.tries, 8)));
     bridgeRetryAt = NOW + wait;
     BRIDGE.status = BRIDGE.tries > 3 ? 'NO BRIDGE' : 'RETRY';
+    BRIDGE.listening = false; updateListenButton();
     if (BRIDGE.tries === 1) logEvent('> bridge: not running — start holo-bridge.js', 0.6);
   };
 }
@@ -1308,6 +1321,30 @@ function disconnectBridge() {
   CONFIG.bridge = false;
   if (bridgeSock) { try { bridgeSock.close(); } catch (e) {} bridgeSock = null; }
   BRIDGE.status = 'OFF'; BRIDGE.tries = 0;
+}
+// The microphone button. A page cannot start a process, so this asks the
+// bridge to spawn the listener — which is why the bridge is the one piece
+// that has to already be running.
+function setListening(on) {
+  if (!bridgeSock || bridgeSock.readyState !== 1) {
+    logEvent('> bridge: not linked — start holo-bridge.js first', 0.6);
+    return false;
+  }
+  try {
+    bridgeSock.send(JSON.stringify({ type: 'listen', on: !!on, model: CONFIG.sttModel || 'small' }));
+    logEvent(on ? '> mic: starting listener…' : '> mic: stopping listener', 0.75);
+    return true;
+  } catch (e) { return false; }
+}
+function updateListenButton() {
+  const b = document.getElementById('listen-toggle');
+  if (!b) return;
+  const linked = BRIDGE.status === 'LINKED';
+  b.textContent = !linked ? '⚠ BRIDGE OFFLINE'
+    : (BRIDGE.listening ? '■ STOP LISTENING' : '🎙 START LISTENING');
+  b.classList.toggle('armed', !!BRIDGE.listening);
+  b.style.opacity = linked ? '1' : '0.5';
+  b.title = linked ? '' : 'Run holo-bridge.js (or start-jarvis.bat) once, then this button works';
 }
 function bridgeTick() {
   if (!CONFIG.bridge) return;
@@ -2880,7 +2917,7 @@ function drawTicker() {
   const fields = [
     ['SUBJ', modelCfg().id],
     ['VOICE', VOICE.status + (VOICE.detail ? ':' + VOICE.detail : '')],
-    ['BRIDGE', BRIDGE.status],
+    ['BRIDGE', BRIDGE.status + (BRIDGE.listening ? '/MIC' : '')],
     ['RES', W + 'x' + H + '@' + (window.devicePixelRatio || 1).toFixed(2) + 'x'],
     ['PTS', heroPoints.length.toLocaleString()],
     ['FPS', (SYS.fps || '--') + '/' + SYS.frameMs.toFixed(1) + 'MS'],
@@ -3682,6 +3719,9 @@ const RING_STYLES = {
   orbital: { name: 'Orbital' },
   sonar:   { name: 'Sonar' },
 };
+// Whisper sizes, all present locally. Bigger is more accurate and slower;
+// medium needs roughly 1.5GB free to load at all.
+const STT_MODELS = { tiny: { name: 'Tiny' }, small: { name: 'Small' }, medium: { name: 'Medium' } };
 const CLOCK_POSITIONS = { left: { name: 'Left' }, center: { name: 'Center' }, right: { name: 'Right' } };
 // ---------- Background picture ----------
 // Stored under its own localStorage key rather than inside the settings blob:
@@ -3822,6 +3862,9 @@ function bindVoiceUI() {
   }
   const sel = document.getElementById('voice-pick');
   if (sel) sel.addEventListener('change', () => { CONFIG.assistantVoice = sel.value; saveConfig(); });
+  const lt = document.getElementById('listen-toggle');
+  if (lt) lt.addEventListener('click', () => setListening(!BRIDGE.listening));
+  updateListenButton();
   const test = document.getElementById('voice-test');
   if (test) test.addEventListener('click', () => {
     setState('RESPONDING'); fire('respond', 1200);
@@ -3840,6 +3883,9 @@ function renderChromeRows() {
   renderPickRow('ring-row', RING_STYLES, 'reticleStyle');
   renderPickRow('font-row', FONT_STACKS, 'hudFont');
   renderPickRow('clockpos-row', CLOCK_POSITIONS, 'clockPos');
+  renderPickRow('stt-row', STT_MODELS, 'sttModel', () => {
+    if (BRIDGE.listening) { setListening(false); setTimeout(() => setListening(true), 600); }
+  });
   renderPickRow('globemodel-row', GLOBE_MODELS, 'globeModel', rebuildGlobe);
 }
 // Ink and stock only mean anything on paper, so the whole block hides
@@ -4466,6 +4512,7 @@ function handleWEProperties(properties) {
   if (P.wakeword && typeof val(P.wakeword) === 'string') CONFIG.wakeWord = val(P.wakeword).trim();
   if (P.bridge !== undefined) { const on = !!val(P.bridge); if (on !== CONFIG.bridge) { CONFIG.bridge = on; if (on) { BRIDGE.tries = 0; connectBridge(); } else disconnectBridge(); } }
   if (P.bridgeport !== undefined) CONFIG.bridgePort = Number(val(P.bridgeport));
+  if (P.sttmodel && val(P.sttmodel)) CONFIG.sttModel = val(P.sttmodel);
   if (P.density !== undefined && Number(val(P.density)) !== CONFIG.density) {
     CONFIG.density = Number(val(P.density));
     modelChanged = true;   // density is baked into the point list, so re-run the build

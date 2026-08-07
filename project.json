@@ -780,6 +780,26 @@
 				"min": 1024,
 				"max": 65535,
 				"step": 1
+			},
+			"sttmodel": {
+				"order": 68,
+				"text": "Speech model",
+				"type": "combo",
+				"value": "small",
+				"options": [
+					{
+						"label": "Tiny (fastest)",
+						"value": "tiny"
+					},
+					{
+						"label": "Small (balanced)",
+						"value": "small"
+					},
+					{
+						"label": "Medium (most accurate)",
+						"value": "medium"
+					}
+				]
 			}
 		},
 		"supportsaudioprocessing": true
