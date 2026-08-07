@@ -1307,6 +1307,7 @@ function connectBridge() {
     BRIDGE.status = 'LINKED'; BRIDGE.tries = 0;
     logEvent('> bridge: linked on port ' + (CONFIG.bridgePort || 8787), 0.85);
     updateListenButton();
+    flushPendingListen();
     fire('panel-link', 1200); spawnPackets('link', 4);
   };
   s.onmessage = (ev) => {
@@ -1348,14 +1349,40 @@ function disconnectBridge() {
 // The microphone button. A page cannot start a process, so this asks the
 // bridge to spawn the listener — which is why the bridge is the one piece
 // that has to already be running.
+// Sending is deferred rather than refused when the link is not up yet: the
+// first version made the user find and flip a separate "Local voice bridge"
+// toggle, buried in another group, before this button would do anything —
+// and said BRIDGE OFFLINE either way, so a running bridge and a disabled
+// connection looked identical. Pressing the button now connects if needed
+// and sends once linked.
+let pendingListen = null;
 function setListening(on) {
+  pendingListen = { on: !!on, at: NOW };
+  if (!CONFIG.bridge) {
+    CONFIG.bridge = true;
+    saveConfig();
+    refreshSettingsUI();
+    BRIDGE.tries = 0;
+    logEvent('> bridge: connecting…', 0.7);
+    connectBridge();
+  }
+  return flushPendingListen();
+}
+function flushPendingListen() {
+  if (!pendingListen) return false;
   if (!bridgeSock || bridgeSock.readyState !== 1) {
-    logEvent('> bridge: not linked — start holo-bridge.js first', 0.6);
+    // Give up only once the reconnect has genuinely failed, rather than the
+    // instant the socket is not ready.
+    if (NOW - pendingListen.at > 6000) {
+      logEvent('> bridge: no bridge on port ' + (CONFIG.bridgePort || 8787) + ' — run start-bridge.bat', 0.6);
+      pendingListen = null;
+    }
     return false;
   }
   try {
-    bridgeSock.send(JSON.stringify({ type: 'listen', on: !!on, model: CONFIG.sttModel || 'small' }));
-    logEvent(on ? '> mic: starting listener…' : '> mic: stopping listener', 0.75);
+    bridgeSock.send(JSON.stringify({ type: 'listen', on: pendingListen.on, model: CONFIG.sttModel || 'small' }));
+    logEvent(pendingListen.on ? '> mic: starting listener…' : '> mic: stopping listener', 0.75);
+    pendingListen = null;
     return true;
   } catch (e) { return false; }
 }
@@ -1363,15 +1390,21 @@ function updateListenButton() {
   const b = document.getElementById('listen-toggle');
   if (!b) return;
   const linked = BRIDGE.status === 'LINKED';
-  b.textContent = !linked ? '⚠ BRIDGE OFFLINE'
-    : (BRIDGE.listening ? '■ STOP LISTENING' : '🎙 START LISTENING');
+  // Three distinct states, because "offline" previously covered both a
+  // missing bridge and a connection that was simply switched off — which
+  // sent you looking for a process that was already running.
+  const connecting = CONFIG.bridge && (BRIDGE.status === 'CONNECTING' || BRIDGE.status === 'RETRY' || !!pendingListen);
+  b.textContent = linked ? (BRIDGE.listening ? '■ STOP LISTENING' : '🎙 START LISTENING')
+    : connecting ? '… CONNECTING'
+    : (BRIDGE.status === 'NO BRIDGE' ? '⚠ RUN start-bridge.bat' : '🎙 START LISTENING');
   b.classList.toggle('armed', !!BRIDGE.listening);
-  b.style.opacity = linked ? '1' : '0.5';
-  b.title = linked ? '' : 'Run holo-bridge.js (or start-jarvis.bat) once, then this button works';
+  b.style.opacity = linked ? '1' : '0.75';
+  b.title = linked ? '' : 'Press to connect. If it cannot, run start-bridge.bat once.';
 }
 function bridgeTick() {
   if (!CONFIG.bridge) return;
   if (!bridgeSock && bridgeRetryAt && NOW > bridgeRetryAt) { bridgeRetryAt = 0; connectBridge(); }
+  if (pendingListen) flushPendingListen();
 }
 // Lets the companion log what the wallpaper answered, so a headless setup can
 // still be followed from the console it was started in.
