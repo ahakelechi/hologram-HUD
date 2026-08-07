@@ -365,6 +365,8 @@
   <div class="model-row" id="particle-row"></div>
   <h4 style="margin-top:12px;">Orbital Instrument</h4>
   <div class="model-row" id="globemodel-row"></div>
+  <h4 style="margin-top:12px;">Render Style</h4>
+  <div class="model-row" id="render-row"></div>
   <h4 style="margin-top:12px;">Ring Style</h4>
   <div class="model-row" id="ring-row"></div>
   <h4 style="margin-top:12px;">HUD Font</h4>
@@ -611,6 +613,13 @@ const DEFAULT_CONFIG = {
   // recognised text here. This is the path that works inside Wallpaper Engine.
   bridge: false,
   bridgePort: 8787,
+  // How the subject is drawn. 'points' is the original stipple.
+  renderStyle: 'points',   // points | solid | contour | hatch
+  solidSize: 100,
+  contourFreq: 100,
+  contourWidth: 100,
+  hatchLength: 100,
+  surfaceSize: 100,
   showConvo: true,       // conversation view, opened by START LISTENING
   sttModel: 'small',     // whisper model the listener loads: tiny | small | medium
   assistant: false,
@@ -681,7 +690,7 @@ const SMOOTH_KEYS = [
   'modelX', 'modelY', 'projectorX', 'projectorY', 'projectorZ', 'hueShift',
   'reticleX', 'reticleY', 'reticleScale', 'reticleSpin', 'reticleDetail',
   'modelSpinSpeed', 'clockX', 'clockY', 'hudLeftX', 'hudLeftY', 'subjectOpacity',
-  'hudRightX', 'hudRightY', 'hudColW', 'hudTextTint', 'globeSpinSpeed', 'ambientVolume', 'bgAngle', 'bgWash', 'paperContrast', 'bgImageDim', 'bgImageBlur',
+  'hudRightX', 'hudRightY', 'hudColW', 'hudTextTint', 'globeSpinSpeed', 'ambientVolume', 'bgAngle', 'bgWash', 'solidSize', 'contourFreq', 'contourWidth', 'hatchLength', 'surfaceSize', 'paperContrast', 'bgImageDim', 'bgImageBlur',
 ];
 const SMOOTH = {};
 function initSmooth() { SMOOTH_KEYS.forEach((k) => { SMOOTH[k] = CONFIG[k]; }); }
@@ -960,12 +969,20 @@ function buildPoints(key, density, opts) {
   // tangent. Supersampling keeps the stipple fine while still letting
   // tone decide how many survive — if the vertices themselves were the
   // dots, density could no longer encode tone.
-  const SAMPLES = cfg.samples || 3;
+  // Supersampling exists to keep the stipple fine while density encodes
+  // tone. The surface style does neither - splats overlap by design - so the
+  // extra samples are pure cost there: 185k points and 51ms a frame became
+  // 62k and about a third of that, with no visible difference.
+  const SAMPLES = cfg.uniform ? 1 : (cfg.samples || 3);
   const JITTER = cfg.jitter || 0.007;
   for (let i = 0; i < M.count; i++) {
     const nx = M.NX[i], ny = M.NY[i], nz = M.NZ[i], ao = M.AO[i];
     const tone = Math.min(1, toneAt(nx, ny, nz, ao));
-    const keep = (0.03 + 0.97 * Math.pow(tone, 2.3)) * density;
+    // Density normally encodes tone - fewer dots where it is darker. A solid
+    // surface cannot use that: the sparse areas become actual holes you can
+    // see the far side through. So this style samples uniformly and lets the
+    // shading alone carry tone.
+    const keep = cfg.uniform ? density : (0.03 + 0.97 * Math.pow(tone, 2.3)) * density;
     const bright0 = 0.30 + 0.70 * Math.max(0, 1 - Math.pow(ao, 0.75) * 1.1);
     const ax = Math.abs(nx) < 0.9 ? 1 : 0, ay = ax ? 0 : 1;
     let tx = ay * nz, ty = -ax * nz, tz = ax * ny - ay * nx;
@@ -1004,7 +1021,7 @@ function rebuildHero() {
   const sc = cfg.scale * (CONFIG.scale / 100);
   const L = landmarks(cfg);
   heroPoints = buildPoints(CONFIG.model, CONFIG.density / 100, {
-    scale: sc, offY: cfg.offY * sc, jaw: cfg.jaw, land: L,
+    scale: sc, offY: cfg.offY * sc, jaw: cfg.jaw, uniform: CONFIG.renderStyle === 'surface', land: L,
   });
   JAW_PIVOT_Y = L.pivotY * sc + cfg.offY * sc;
   JAW_PIVOT_Z = L.pivotZ * sc;
@@ -2197,6 +2214,89 @@ function accentFor(a) {
   accentKey = a;
   return accentRGB;
 }
+// --- primitives for the alternative render styles -----------------------
+// Everything here writes into the same pixel buffer as blendPx, so the styles
+// compose with the existing lighting, aberration and paper-ink conversion
+// rather than being a separate pipeline.
+
+// Soft filled disc. This is what turns a stipple into a surface: overlapping
+// discs with a falloff read as continuous material, where single pixels read
+// as grains no matter how many of them there are.
+function blendDisc(cx, cy, rad, r, g, b) {
+  const ri = Math.ceil(rad);
+  if (ri <= 0) { if (cx >= 0 && cy >= 0 && cx < tW && cy < tH) blendPx(cy * tW + cx, r, g, b); return; }
+  const inv = 1 / (rad * rad);
+  const x0 = cx - ri < 0 ? 0 : cx - ri, x1 = cx + ri >= tW ? tW - 1 : cx + ri;
+  const y0 = cy - ri < 0 ? 0 : cy - ri, y1 = cy + ri >= tH ? tH - 1 : cy + ri;
+  for (let y = y0; y <= y1; y++) {
+    const dyy = y - cy, row = y * tW;
+    for (let x = x0; x <= x1; x++) {
+      const dxx = x - cx;
+      const d2 = dxx * dxx + dyy * dyy;
+      if (d2 > rad * rad) continue;
+      // Squared falloff: a linear one leaves a visible hard rim on every dot.
+      let f = 1 - d2 * inv;
+      f *= f;
+      blendPx(row + x, (r * f) | 0, (g * f) | 0, (b * f) | 0);
+    }
+  }
+}
+
+// --- depth-buffered opaque surface --------------------------------------
+// The route to "only the surfaces we should see". Every other style here is
+// additive, so the far side of the head shines through the near side and the
+// subject reads as a translucent cloud. This keeps a per-pixel depth and
+// writes opaquely, so a nearer splat replaces a farther one instead of adding
+// to it — which is hidden-surface removal, the thing that actually makes a
+// render look solid. It needs no triangles, so unlike a real mesh renderer it
+// works on every model, including the ones with no source mesh left.
+let zBuf = null, zW = 0, zH = 0;
+function ensureZBuf() {
+  if (!zBuf || zW !== tW || zH !== tH) { zBuf = new Float32Array(tW * tH); zW = tW; zH = tH; }
+  zBuf.fill(-1e9);
+}
+function setPxZ(idx, r, g, b, z) {
+  if (z <= zBuf[idx]) return;      // something nearer already owns this pixel
+  zBuf[idx] = z;
+  tU32[idx] = 0xFF000000 | (b << 16) | (g << 8) | r;
+}
+// Opaque disc with depth. The falloff is applied to the colour rather than to
+// alpha, because blending against what is behind is exactly what this style
+// exists to avoid.
+function surfaceDisc(cx, cy, rad, r, g, b, z) {
+  const ri = Math.ceil(rad);
+  if (ri <= 0) { if (cx >= 0 && cy >= 0 && cx < tW && cy < tH) setPxZ(cy * tW + cx, r, g, b, z); return; }
+  const rr = rad * rad, inv = 1 / rr;
+  const x0 = cx - ri < 0 ? 0 : cx - ri, x1 = cx + ri >= tW ? tW - 1 : cx + ri;
+  const y0 = cy - ri < 0 ? 0 : cy - ri, y1 = cy + ri >= tH ? tH - 1 : cy + ri;
+  for (let y = y0; y <= y1; y++) {
+    const dyy = y - cy, row = y * tW;
+    for (let x = x0; x <= x1; x++) {
+      const dxx = x - cx;
+      const d2 = dxx * dxx + dyy * dyy;
+      if (d2 > rr) continue;
+      // Slight dome: the centre of a splat is treated as nearer than its rim,
+      // so overlapping splats knit into a surface instead of tiling as discs.
+      const f = 1 - d2 * inv;
+      const shade = 0.55 + 0.45 * f;
+      setPxZ(row + x, (r * shade) | 0, (g * shade) | 0, (b * shade) | 0, z + f * 0.004);
+    }
+  }
+}
+// Short straight stroke, for hatching. Bresenham rather than a canvas line:
+// this has to land in the pixel buffer to pick up the same colour treatment.
+function blendSeg(x0, y0, x1, y1, r, g, b) {
+  let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy, guard = 0;
+  for (;;) {
+    if (x0 >= 0 && y0 >= 0 && x0 < tW && y0 < tH) blendPx(y0 * tW + x0, r, g, b);
+    if ((x0 === x1 && y0 === y1) || ++guard > 64) break;
+    const e2 = err * 2;
+    if (e2 > -dy) { err -= dy; x0 += sx; }
+    if (e2 < dx) { err += dx; y0 += sy; }
+  }
+}
 function blendPx(idx, r, g, b) {
   const p = tU32[idx];
   let pr = (p & 255) + r; if (pr > 255) pr = 255;
@@ -2239,7 +2339,7 @@ function renderGlobe(g) {
   ensureGlobeBuffer(Math.max(1, g.w | 0), Math.max(1, g.h | 0));
   gxU32.fill(0x00000000);
   setTarget(gxU32, gxW, gxH);
-  rasterCloud(globePoints, gxW * 0.30, gxW / 2, gxH / 2, globeYaw, GLOBE_TILT, { gain: 0.74, key: 0.92, ca: 0.5 });
+  rasterCloud(globePoints, gxW * 0.30, gxW / 2, gxH / 2, globeYaw, GLOBE_TILT, { gain: 0.74, key: 0.92, ca: 0.5, plain: true });
   if (isPaper()) inkifyBuffer(gxU32);
   globeCtx.putImageData(gxData, 0, 0);
   setTarget(pxU32, W, H);
@@ -2282,6 +2382,17 @@ function rasterCloud(pts, r0, ox, oy, yaw, pitch, opt) {
   // against that rather than against r0 itself — scaled the other way, the
   // offset truncated to zero everywhere and the effect never drew at all.
   const caK = CONFIG.aberration ? (opt.ca !== undefined ? opt.ca : 1) * 3.4 / Math.max(1, r0) : 0;
+  // Style constants are hoisted out of the per-point loop: this runs tens of
+  // thousands of times per raster, and reading CONFIG inside it is measurable.
+  // The globe passes `plain` so the little instrument stays a point cloud
+  // regardless of what the subject is doing.
+  const STYLE = opt.plain ? 'points' : (CONFIG.renderStyle || 'points');
+  const SOLID_K = (SMOOTH.solidSize ?? 100) / 100;
+  const CONTOUR_F = 26 * ((SMOOTH.contourFreq ?? 100) / 100);
+  const CONTOUR_W = 0.13 * ((SMOOTH.contourWidth ?? 100) / 100);
+  const HATCH_L = 2.6 * ((SMOOTH.hatchLength ?? 100) / 100);
+  const SURF_K = (SMOOTH.surfaceSize ?? 100) / 100;
+  if (STYLE === 'surface') ensureZBuf();
   for (let i = 0; i < pts.length; i++) {
     const pt = pts[i];
     const lx = pt.x + pt.jit * jitAmp;
@@ -2350,6 +2461,54 @@ function rasterCloud(pts, r0, ox, oy, yaw, pitch, opt) {
     let cb = (col.b * body + rimB * ri) * shadeMul + hotB * bw;
     if (cr > 255) cr = 255; if (cg > 255) cg = 255; if (cb > 255) cb = 255;
     cr |= 0; cg |= 0; cb |= 0;
+    // --- render style -----------------------------------------------------
+    // Each style replaces only the mark that gets made; the lighting above is
+    // shared, so they all reshade as the subject turns and all pick up the
+    // paper ink conversion downstream.
+    if (STYLE === 'surface') {
+      // Radius is depth-scaled only. Unlike the additive solid style it must
+      // not shrink in shadow, or the surface develops holes exactly where
+      // the form turns away — which is where it most needs to stay closed.
+      const rad = 2.5 * persp * SURF_K;
+      surfaceDisc(dx, dy, rad, cr, cg, cb, z2);
+      continue;
+    }
+    if (STYLE === 'solid') {
+      // Radius follows luminance as well as depth, so lit areas fuse into a
+      // surface while shadowed ones stay open. A constant radius just makes
+      // an evenly muddy blob.
+      const rad = (0.9 + lum * 1.9) * persp * SOLID_K;
+      blendDisc(dx, dy, rad, cr, cg, cb);
+      continue;
+    }
+    if (STYLE === 'contour') {
+      // Keep only points near an iso-level of model-space height, so the form
+      // is described by stacked slices the way a contour map or a CT scan is.
+      const band = ly * CONTOUR_F;
+      const frac = band - Math.floor(band);
+      const d = frac < 0.5 ? frac : 1 - frac;
+      if (d > CONTOUR_W) continue;
+      // Brighten toward the centre of each band so the lines read as lines.
+      // The gain is not decoration: this style throws away the large majority
+      // of points, so without compensating for what was discarded the whole
+      // subject comes out several stops darker than every other style.
+      const e = 1 - d / CONTOUR_W;
+      const k = (0.9 + 1.5 * e * e) * 1.7;
+      let r2 = cr * k, g2 = cg * k, b2 = cb * k;
+      if (r2 > 255) r2 = 255; if (g2 > 255) g2 = 255; if (b2 > 255) b2 = 255;
+      blendDisc(dx, dy, 0.85 * persp, r2 | 0, g2 | 0, b2 | 0);
+      continue;
+    }
+    if (STYLE === 'hatch') {
+      // Stroke direction comes from the surface normal projected to screen,
+      // so the hatching follows the form instead of being a flat 45-degree
+      // screen pattern laid over it — that following is the whole effect.
+      const len = (1.2 + (1 - lum) * HATCH_L) * persp;
+      const ang = Math.atan2(ny2, nx1) + 1.5707963;
+      const hx = Math.cos(ang) * len, hy = Math.sin(ang) * len;
+      blendSeg((dx - hx) | 0, (dy - hy) | 0, (dx + hx) | 0, (dy + hy) | 0, cr, cg, cb);
+      continue;
+    }
     blendPx(dy * tW + dx, cr, cg, cb);
     // Radial chromatic aberration, applied only to bright points so the
     // cost stays in the few hundred pixels where the fringe is visible.
@@ -2415,7 +2574,7 @@ function heroSig(p, r0) {
   // angle. That is the "spin hangs, then breaks" behaviour.
   return [r0 | 0, heroYaw.toFixed(5), headPitch.toFixed(5), parallax.x.toFixed(2), parallax.y.toFixed(2),
     p.gain.toFixed(4), p.key.toFixed(4), (p.rim || 1).toFixed(4), p.jawAngle.toFixed(4), p.scanY.toFixed(3), p.jitAmp.toFixed(5),
-    ripple.toFixed(3), CONFIG.theme, CONFIG.model, CONFIG.aberration ? 1 : 0, heroPoints.length].join('|');
+    ripple.toFixed(3), CONFIG.theme, CONFIG.model, CONFIG.renderStyle, CONFIG.aberration ? 1 : 0, heroPoints.length].join('|');
 }
 function drawHero(r0, p) {
   rasterCloud(heroPoints, r0, heroCX(), heroCY(), heroYaw, heroPitch(), p);
@@ -3866,6 +4025,13 @@ function renderPickRow(rowId, options, key, after) {
     row.appendChild(el);
   });
 }
+const RENDER_STYLES = {
+  points:  { name: 'Stipple' },
+  solid:   { name: 'Solid' },
+  contour: { name: 'Contour' },
+  hatch:   { name: 'Hatch' },
+  surface: { name: 'Surface' },
+};
 const RING_STYLES = {
   classic: { name: 'Classic' },
   vault:   { name: 'Vault' },
@@ -4108,6 +4274,7 @@ function renderChromeRows() {
   bindBgImageInput();
   renderPickRow('bg-fit-row', BG_FITS, 'bgImageFit');
   renderPaletteRow();
+  renderPickRow('render-row', RENDER_STYLES, 'renderStyle', () => { rebuildHero(); sceneDirty = true; lastRenderAt = 0; });
   renderPickRow('ring-row', RING_STYLES, 'reticleStyle');
   renderPickRow('font-row', FONT_STACKS, 'hudFont');
   renderPickRow('clockpos-row', CLOCK_POSITIONS, 'clockPos');
@@ -4222,6 +4389,11 @@ const SETTING_GROUPS = [
       ['rimAmount', 'Rim light', 0, 250, '%', 1],
       ['eyeGlowAmount', 'Eye glow amount', 0, 200, '%', 1],
       ['subjectOpacity', 'Subject opacity', 20, 100, '%', 1],
+      ['solidSize', 'Solid thickness', 40, 220, '%', 5, { redraw: true }],
+      ['contourFreq', 'Contour spacing', 30, 300, '%', 5, { redraw: true }],
+      ['contourWidth', 'Contour weight', 30, 250, '%', 5, { redraw: true }],
+      ['hatchLength', 'Hatch length', 30, 260, '%', 5, { redraw: true }],
+      ['surfaceSize', 'Surface thickness', 50, 260, '%', 5, { redraw: true }],
     ],
     toggles: [
       ['eyeGlow', 'Eye glow'],

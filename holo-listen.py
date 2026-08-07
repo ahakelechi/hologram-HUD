@@ -25,6 +25,8 @@ Usage
     python holo-listen.py --dry-run             # print, do not post
 """
 import argparse
+import queue
+import threading
 import json
 import re
 import subprocess
@@ -43,9 +45,9 @@ FRAME_BYTES = int(RATE * 2 * FRAME_MS / 1000)   # 16-bit mono
 # noise floor is measured at startup and the gate floats above it.
 CALIBRATE_SEC = 1.2
 SPEECH_MULT = 3.2       # how far above the floor counts as speech
-SILENCE_HANG = 0.70     # seconds of quiet that end an utterance
+SILENCE_HANG = 0.45     # seconds of quiet that end an utterance
 MIN_SPEECH = 0.35       # ignore coughs, clicks and door slams
-MAX_UTTER = 15.0        # hard stop, so one noisy room cannot buffer forever
+MAX_UTTER = 8.0         # hard stop, so one noisy room cannot buffer forever
 PREROLL = 0.30          # keep audio from just before the gate opened
 
 
@@ -162,9 +164,13 @@ def load_model(name, prefer_gpu):
 
 def transcribe(model, audio, np):
     a = np.frombuffer(audio, dtype=np.int16).astype(np.float32) / 32768.0
+    # vad_filter is deliberately off. The gate in the capture loop has already
+    # decided this buffer is speech, and faster-whisper's own VAD was then
+    # discarding short commands outright - which is why entire sessions
+    # produced "transcribing..." lines and not one recognised word.
     segs, _ = model.transcribe(a, language="en", beam_size=1,
                                condition_on_previous_text=False,
-                               vad_filter=True)
+                               vad_filter=False)
     return " ".join(s.text.strip() for s in segs).strip()
 
 
@@ -228,12 +234,46 @@ def main():
     log("noise floor %.4f, speech gate %.4f" % (floor, gate))
     log("listening - say the wake word, e.g. \"nexus what time is it\"  (ctrl-c to stop)")
 
+    # Transcription runs on its own thread. Previously it ran inline, so for
+    # the seconds a model took the capture loop never called read() - the pipe
+    # backed up, ffmpeg stalled, and whatever was said during that window
+    # arrived late and mangled. That is the "it ignores me, then suddenly
+    # answers" behaviour: it was answering the backlog.
+    work = queue.Queue(maxsize=4)
+
+    def worker():
+        while True:
+            item = work.get()
+            if item is None:
+                break
+            audio, voiced = item
+            post_mic(args.port, 0.0, "transcribing", gate)
+            t0 = time.time()
+            try:
+                text = transcribe(model, audio, np)
+            except Exception as e:
+                log("transcribe failed: %s" % e)
+                text = ""
+            took = time.time() - t0
+            if text:
+                log("heard: %r  (%.1fs audio, %.1fs decode)" % (text, voiced, took))
+                post(url, text, args.dry_run)
+            else:
+                log("nothing recognised (%.1fs audio, %.1fs decode)" % (voiced, took))
+
+    th = threading.Thread(target=worker, daemon=True)
+    th.start()
+
     preroll_frames = int(PREROLL * 1000 / FRAME_MS)
     preroll, buf = [], bytearray()
     speaking = False
     last_report = 0.0
     quiet_for = 0.0
     spoke_for = 0.0
+    # The room does not hold still. A floor measured once at startup goes stale
+    # the moment a fan, a game or a video starts, and a stale floor is what
+    # jams the gate open until the 15s cap - which the log showed happening.
+    quiet_ema = floor
 
     try:
         while True:
@@ -244,11 +284,13 @@ def main():
                 break
             level = rms(chunk, np)
             now = time.time()
-            # ~8 updates a second is enough for a meter and light on the wire.
             if now - last_report > 0.12:
                 last_report = now
                 post_mic(args.port, level, "speech" if speaking else "idle", gate)
             if not speaking:
+                # Track the quiet level continuously and let the gate follow it.
+                quiet_ema = quiet_ema * 0.995 + level * 0.005
+                gate = max(0.010, quiet_ema * SPEECH_MULT)
                 preroll.append(chunk)
                 if len(preroll) > preroll_frames:
                     preroll.pop(0)
@@ -269,19 +311,24 @@ def main():
                     if voiced < MIN_SPEECH:
                         buf = bytearray()
                         continue
-                    post_mic(args.port, 0.0, "transcribing", gate)
-                    log("transcribing %.1fs..." % voiced)
-                    t0 = time.time()
-                    text = transcribe(model, bytes(buf), np)
+                    if spoke_for >= MAX_UTTER:
+                        # Hitting the cap means the gate never closed, i.e. the
+                        # floor is wrong for the room as it is now.
+                        log("hit the %.0fs cap - gate may be too low (level %.4f, gate %.4f)"
+                            % (MAX_UTTER, level, gate))
+                        quiet_ema = max(quiet_ema, level * 0.8)
+                    try:
+                        work.put_nowait((bytes(buf), voiced))
+                    except queue.Full:
+                        log("decoder busy, dropped %.1fs" % voiced)
                     buf = bytearray()
-                    if text:
-                        log("heard: %r  (%.1fs)" % (text, time.time() - t0))
-                        post(url, text, args.dry_run)
-                    else:
-                        log("nothing recognised")
     except KeyboardInterrupt:
         log("stopping")
     finally:
+        try:
+            work.put_nowait(None)
+        except Exception:
+            pass
         try:
             proc.terminate()
         except Exception:
