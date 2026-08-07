@@ -140,6 +140,37 @@
     opacity: 0.028; mix-blend-mode: overlay;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
+  /* Conversation view. Sits above the canvas but out of the subject's way. */
+  #convo {
+    display: none; position: absolute; z-index: 18; left: 50%; bottom: 84px;
+    transform: translateX(-50%); width: min(560px, 54vw);
+    background: rgba(4,8,14,0.80); border: 1px solid rgba(var(--accent-rgb),0.34);
+    font-family: 'Share Tech Mono', monospace; pointer-events: auto;
+  }
+  body.bg-paper #convo { background: rgba(250,246,236,0.90); }
+  #convo.on { display: block; }
+  #convo-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 8px; font-size: 9px; letter-spacing: 1.4px;
+    color: rgb(var(--accent-rgb)); border-bottom: 1px solid rgba(var(--accent-rgb),0.22);
+  }
+  #convo-close { cursor: pointer; opacity: 0.6; padding: 0 3px; }
+  #convo-close:hover { opacity: 1; }
+  /* Meter: filled bar is the live level, the thin mark is the speech gate,
+     so it is obvious whether the voice is actually clearing the threshold. */
+  #convo-meter { position: relative; height: 6px; margin: 6px 8px 0; background: rgba(var(--accent-rgb),0.10); }
+  #convo-level { height: 100%; width: 0%; background: rgb(var(--accent-rgb)); transition: width 90ms linear; }
+  #convo-gate { position: absolute; top: -2px; bottom: -2px; width: 2px; left: 0%; background: rgba(255,190,90,0.9); }
+  #convo-log { max-height: 168px; overflow-y: auto; padding: 7px 8px 9px; font-size: 10.5px; line-height: 1.5; }
+  #convo-log::-webkit-scrollbar { width: 6px; }
+  #convo-log::-webkit-scrollbar-thumb { background: rgba(var(--accent-rgb),0.28); }
+  .cv-row { margin-bottom: 4px; word-wrap: break-word; }
+  .cv-you { color: rgba(226,247,255,0.94); }
+  .cv-bot { color: rgb(var(--accent-rgb)); }
+  .cv-sys { color: rgba(226,247,255,0.45); font-size: 9px; }
+  body.bg-paper .cv-you { color: #26221e; }
+  body.bg-paper .cv-sys { color: rgba(40,36,32,0.6); }
+  .cv-tag { opacity: 0.55; margin-right: 5px; }
   #gear {
     position: absolute; z-index: 20; top: 14px; left: 50%; transform: translateX(-50%);
     width: 28px; height: 28px; border-radius: 50%;
@@ -258,6 +289,18 @@
 <div class="vignette"></div>
 <div class="grain"></div>
 
+<!-- Conversation view. Without this the whole voice path is invisible: the
+     microphone is in another process, so nothing on screen moves until an
+     utterance has already been recognised. The meter shows capture happening
+     in real time, and the transcript shows both halves of the exchange. -->
+<div id="convo">
+  <div id="convo-head">
+    <span id="convo-state">MIC IDLE</span>
+    <span id="convo-close" title="Hide">✕</span>
+  </div>
+  <div id="convo-meter"><div id="convo-level"></div><div id="convo-gate"></div></div>
+  <div id="convo-log"></div>
+</div>
 <div id="gear" title="Settings">⚙</div>
 <div id="mic-btn" title="Use the microphone as the audio source">🎤 ENABLE AUDIO</div>
 <div id="settings">
@@ -568,6 +611,7 @@ const DEFAULT_CONFIG = {
   // recognised text here. This is the path that works inside Wallpaper Engine.
   bridge: false,
   bridgePort: 8787,
+  showConvo: true,       // conversation view, opened by START LISTENING
   sttModel: 'small',     // whisper model the listener loads: tiny | small | medium
   assistant: false,
   assistantSpeak: true,
@@ -1314,11 +1358,14 @@ function connectBridge() {
     let msg = null;
     try { msg = JSON.parse(ev.data); } catch (e) { return; }
     if (!msg) return;
+    if (msg.type === 'mic') { convoMic(msg.level || 0, msg.state || '', msg.gate || 0); return; }
     if (msg.type === 'listen-status') {
       BRIDGE.listening = !!msg.running;
       if (msg.model) BRIDGE.model = msg.model;
       updateListenButton();
       logEvent(BRIDGE.listening ? '> mic: listening (' + BRIDGE.model + ')' : '> mic: idle', 0.8);
+      if (BRIDGE.listening) { showConvo(true); convoAdd('sys', 'listening with ' + BRIDGE.model + ' — say "' + (CONFIG.wakeWord || 'nexus') + '" then your question'); }
+      else { convoAdd('sys', 'microphone stopped'); convoMic(0, 'idle', 0); }
       return;
     }
     if (msg.type === 'utterance' && msg.text) {
@@ -1345,6 +1392,54 @@ function disconnectBridge() {
   CONFIG.bridge = false;
   if (bridgeSock) { try { bridgeSock.close(); } catch (e) {} bridgeSock = null; }
   BRIDGE.status = 'OFF'; BRIDGE.tries = 0;
+}
+// ---------- Conversation view ----------
+// The microphone lives in another process, so without this the only feedback
+// is a line in the event log after recognition has already finished. The
+// meter proves audio is arriving; the transcript proves it was understood.
+let convoBound = false;
+function convoEl(id) { return document.getElementById(id); }
+function showConvo(on) {
+  const c = convoEl('convo');
+  if (c) c.classList.toggle('on', !!on);
+  CONFIG.showConvo = !!on;
+}
+function convoAdd(kind, text) {
+  const log = convoEl('convo-log');
+  if (!log || !text) return;
+  const row = document.createElement('div');
+  row.className = 'cv-row ' + (kind === 'you' ? 'cv-you' : kind === 'bot' ? 'cv-bot' : 'cv-sys');
+  const tag = document.createElement('span');
+  tag.className = 'cv-tag';
+  tag.textContent = kind === 'you' ? 'YOU' : kind === 'bot' ? 'NEXUS' : '·';
+  row.appendChild(tag);
+  row.appendChild(document.createTextNode(text));
+  log.appendChild(row);
+  // Keep it bounded — this can run for days.
+  while (log.children.length > 60) log.removeChild(log.firstChild);
+  log.scrollTop = log.scrollHeight;
+}
+// Level is an RMS in roughly 0..0.3 for speech, so it is scaled for display
+// rather than shown raw, which would barely move the bar.
+function convoMic(level, state, gate) {
+  const bar = convoEl('convo-level'), gt = convoEl('convo-gate'), st = convoEl('convo-state');
+  const pct = Math.max(0, Math.min(100, level / 0.25 * 100));
+  if (bar) bar.style.width = pct.toFixed(1) + '%';
+  if (gt) gt.style.left = Math.max(0, Math.min(100, gate / 0.25 * 100)).toFixed(1) + '%';
+  if (st) {
+    const label = state === 'calibrating' ? 'CALIBRATING — STAY QUIET'
+      : state === 'transcribing' ? 'TRANSCRIBING…'
+      : state === 'speech' ? '● HEARING YOU'
+      : 'MIC IDLE — SPEAK THE WAKE WORD';
+    st.textContent = label;
+  }
+}
+function bindConvo() {
+  if (convoBound) return;
+  const close = convoEl('convo-close');
+  if (close) close.addEventListener('click', () => showConvo(false));
+  if (CONFIG.showConvo) showConvo(true);
+  convoBound = true;
 }
 // The microphone button. A page cannot start a process, so this asks the
 // bridge to spawn the listener — which is why the bridge is the one piece
@@ -1482,11 +1577,13 @@ function handleUtterance(text) {
   if (!q) { setState('LISTENING'); fire('listen-in', 700); return; }
   VOICE.heard = q;
   logEvent('> heard: ' + ellipsize(q, 34), 0.9);
+  convoAdd('you', q);
   setState('LISTENING');
   const reply = assistantAnswer(q);
-  if (!reply) { logEvent('> voice: no answer for that', 0.5); setState('ATTENTIVE'); return; }
+  if (!reply) { logEvent('> voice: no answer for that', 0.5); convoAdd('sys', 'heard you, but no answer for that — try "help"'); setState('ATTENTIVE'); return; }
   VOICE.reply = reply;
   bridgeReport(reply);
+  convoAdd('bot', reply);
   logEvent('> reply: ' + ellipsize(reply, 34), 0.85);
   setState('RESPONDING');
   fire('respond', 1400); fire('notify', 700);
@@ -4005,6 +4102,7 @@ function bindVoiceUI() {
   voiceUIBound = true;
 }
 function renderChromeRows() {
+  bindConvo();
   bindColorInputs();
   bindVoiceUI();
   bindBgImageInput();

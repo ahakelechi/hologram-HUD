@@ -92,6 +92,20 @@ def rms(buf, np):
     return float(np.sqrt(np.mean(a * a)))
 
 
+def post_mic(port, level, state, gate):
+    """Live meter for the wallpaper. Fire-and-forget: telemetry must never
+    hold up capture, and a bridge that has gone away is not an error here."""
+    try:
+        req = urllib.request.Request("http://127.0.0.1:%d/mic" % port,
+                                     data=json.dumps({"level": round(level, 5),
+                                                      "state": state,
+                                                      "gate": round(gate, 5)}).encode("utf-8"),
+                                     headers={"content-type": "application/json"})
+        urllib.request.urlopen(req, timeout=0.4).close()
+    except Exception:
+        pass
+
+
 def post(url, text, dry):
     if dry:
         log("dry-run, not posting")
@@ -206,7 +220,9 @@ def main():
         chunk = proc.stdout.read(FRAME_BYTES)
         if not chunk:
             break
-        floor_samples.append(rms(chunk, np))
+        lvl = rms(chunk, np)
+        floor_samples.append(lvl)
+        post_mic(args.port, lvl, "calibrating", 0.0)
     floor = (sum(floor_samples) / len(floor_samples)) if floor_samples else 0.005
     gate = max(0.010, floor * SPEECH_MULT)
     log("noise floor %.4f, speech gate %.4f" % (floor, gate))
@@ -215,6 +231,7 @@ def main():
     preroll_frames = int(PREROLL * 1000 / FRAME_MS)
     preroll, buf = [], bytearray()
     speaking = False
+    last_report = 0.0
     quiet_for = 0.0
     spoke_for = 0.0
 
@@ -226,6 +243,11 @@ def main():
                 log("audio stream ended. %s" % err.strip()[:200])
                 break
             level = rms(chunk, np)
+            now = time.time()
+            # ~8 updates a second is enough for a meter and light on the wire.
+            if now - last_report > 0.12:
+                last_report = now
+                post_mic(args.port, level, "speech" if speaking else "idle", gate)
             if not speaking:
                 preroll.append(chunk)
                 if len(preroll) > preroll_frames:
@@ -247,6 +269,7 @@ def main():
                     if voiced < MIN_SPEECH:
                         buf = bytearray()
                         continue
+                    post_mic(args.port, 0.0, "transcribing", gate)
                     log("transcribing %.1fs..." % voiced)
                     t0 = time.time()
                     text = transcribe(model, bytes(buf), np)

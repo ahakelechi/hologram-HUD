@@ -91,9 +91,16 @@ function say(text) {
   return n;
 }
 
+// The bridge is normally launched windowless, so console output alone means
+// no record at all when something goes wrong. Everything also lands in a file
+// next to the script.
+const LOG_FILE = path.join(__dirname, 'holo-bridge.log');
+try { require('fs').writeFileSync(LOG_FILE, '--- holo-bridge started ' + new Date().toISOString() + ' ---\n'); } catch (e) {}
 function log(msg) {
   const t = new Date().toLocaleTimeString();
-  process.stdout.write('[' + t + '] ' + msg + '\n');
+  const line = '[' + t + '] ' + msg + '\n';
+  process.stdout.write(line);
+  try { require('fs').appendFileSync(LOG_FILE, line); } catch (e) {}
 }
 
 // --- the listener, owned by the bridge ----------------------------------
@@ -163,6 +170,18 @@ const server = http.createServer((req, res) => {
     const ok = on ? startListener() : (stopListener(), true);
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ ok: ok, listening: !!listener }));
+    return;
+  }
+  if (req.method === 'POST' && req.url === '/mic') {
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 2048) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const j = JSON.parse(body);
+        broadcast({ type: 'mic', level: +j.level || 0, state: String(j.state || ''), gate: +j.gate || 0 });
+      } catch (e) {}
+      res.writeHead(204); res.end();
+    });
     return;
   }
   if (req.method === 'POST' && req.url === '/say') {
