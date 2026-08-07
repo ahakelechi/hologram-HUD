@@ -764,7 +764,7 @@
 				"order": 65,
 				"text": "Wake word",
 				"type": "textinput",
-				"value": "nexus"
+				"value": "jarvis"
 			},
 			"bridge": {
 				"order": 66,

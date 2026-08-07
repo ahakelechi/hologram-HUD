@@ -626,7 +626,9 @@ const DEFAULT_CONFIG = {
   assistantSpeak: true,
   assistantVolume: 90,
   assistantVoice: '',     // empty = whatever the OS picks
-  wakeWord: 'nexus',
+  // 'jarvis' rather than a made-up name: speech recognisers transcribe real
+  // words reliably, and 'nexus' came back as "next is" every single time.
+  wakeWord: 'jarvis',
   ambient: false,
   ambientVolume: 25,     // %
   globeModel: 'earth',   // which baked model rides the small orbital instrument
@@ -678,6 +680,11 @@ let CONFIG;
 try { CONFIG = JSON.parse(localStorage.getItem('holoNexusConfig')); } catch (e) { CONFIG = null; }
 CONFIG = Object.assign({}, DEFAULT_CONFIG, CONFIG || {});
 if (!MODEL_CFG[CONFIG.model]) CONFIG.model = 'human';
+// A saved setting normally wins over the default, which would leave everyone
+// who ever ran this stuck on the old wake word — the one speech recognition
+// could not hear. Only the exact old default is migrated, so a deliberately
+// chosen wake word is left alone.
+if (CONFIG.wakeWord === 'nexus') CONFIG.wakeWord = 'jarvis';
 function saveConfig() { try { localStorage.setItem('holoNexusConfig', JSON.stringify(CONFIG)); } catch (e) {} }
 
 // Continuous look-sliders ease toward their new value instead of jumping,
@@ -1428,7 +1435,11 @@ function convoAdd(kind, text) {
   row.className = 'cv-row ' + (kind === 'you' ? 'cv-you' : kind === 'bot' ? 'cv-bot' : 'cv-sys');
   const tag = document.createElement('span');
   tag.className = 'cv-tag';
-  tag.textContent = kind === 'you' ? 'YOU' : kind === 'bot' ? 'NEXUS' : '·';
+  // The reply tag follows the wake word, so renaming it renames the speaker
+  // rather than leaving a stale label arguing with what it just called itself.
+  tag.textContent = kind === 'you' ? 'YOU'
+    : kind === 'bot' ? (CONFIG.wakeWord || 'nexus').toUpperCase()
+    : '·';
   row.appendChild(tag);
   row.appendChild(document.createTextNode(text));
   log.appendChild(row);
@@ -1580,7 +1591,10 @@ function assistantAnswer(q) {
   if (has('subject', 'who is this', 'what model', 'what is this')) {
     return 'Current subject is ' + modelCfg().label.toLowerCase() + ', ' + heroPoints.length.toLocaleString() + ' points.';
   }
-  if (has('who are you', 'your name', 'what are you')) return 'I am Nexus, a volumetric interface. Ask me about the time, this machine, or what is playing.';
+  if (has('who are you', 'your name', 'what are you')) {
+    const name = (CONFIG.wakeWord || 'nexus').replace(/^./, (c) => c.toUpperCase());
+    return 'I am ' + name + ', a volumetric interface. Ask me about the time, this machine, or what is playing.';
+  }
   if (has('hello', 'hi ', 'hey', 'good morning', 'good evening')) return 'Standing by.';
   if (has('help', 'what can you do')) return 'Ask about the time, date, processor, memory, battery, network, or what is playing. I can also switch subject and backdrop.';
   return '';
