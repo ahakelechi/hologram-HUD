@@ -49,6 +49,7 @@ SILENCE_HANG = 0.45     # seconds of quiet that end an utterance
 MIN_SPEECH = 0.35       # ignore coughs, clicks and door slams
 MAX_UTTER = 8.0         # hard stop, so one noisy room cannot buffer forever
 PREROLL = 0.30          # keep audio from just before the gate opened
+MIN_GATE = 0.020        # absolute floor; 0.010 sat under this room's own hiss
 
 
 def log(msg):
@@ -230,7 +231,7 @@ def main():
         floor_samples.append(lvl)
         post_mic(args.port, lvl, "calibrating", 0.0)
     floor = (sum(floor_samples) / len(floor_samples)) if floor_samples else 0.005
-    gate = max(0.010, floor * SPEECH_MULT)
+    gate = max(MIN_GATE, floor * SPEECH_MULT)
     log("noise floor %.4f, speech gate %.4f" % (floor, gate))
     log("listening - say the wake word, e.g. \"nexus what time is it\"  (ctrl-c to stop)")
 
@@ -289,8 +290,8 @@ def main():
                 post_mic(args.port, level, "speech" if speaking else "idle", gate)
             if not speaking:
                 # Track the quiet level continuously and let the gate follow it.
-                quiet_ema = quiet_ema * 0.995 + level * 0.005
-                gate = max(0.010, quiet_ema * SPEECH_MULT)
+                quiet_ema = quiet_ema * 0.99 + level * 0.01
+                gate = max(MIN_GATE, quiet_ema * SPEECH_MULT)
                 preroll.append(chunk)
                 if len(preroll) > preroll_frames:
                     preroll.pop(0)

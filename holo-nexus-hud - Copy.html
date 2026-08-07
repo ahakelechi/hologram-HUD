@@ -1585,12 +1585,65 @@ function assistantAnswer(q) {
   if (has('help', 'what can you do')) return 'Ask about the time, date, processor, memory, battery, network, or what is playing. I can also switch subject and backdrop.';
   return '';
 }
+// Levenshtein, capped — only used on short words, so the full matrix is fine.
+function editDistance(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  let prev = new Array(n + 1), cur = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    const t = prev; prev = cur; cur = t;
+  }
+  return prev[n];
+}
+// Speech recognisers do not hear a made-up name the way it is spelled. In
+// practice "nexus" comes back as "next is" almost every time, and an exact
+// substring test therefore discarded every single command. This slides a
+// window of one to three words, strips the spaces, and accepts a near match —
+// so "next is", "nexis", "necks us" and friends all count as the wake word.
+function findWake(text, wake) {
+  const target = wake.replace(/[^a-z0-9]/g, '');
+  if (!target) return { at: 0, end: 0 };
+  const words = text.toLowerCase().split(/\s+/);
+  let best = null, charAt = 0;
+  for (let i = 0; i < words.length; i++) {
+    let joined = '';
+    for (let k = 0; k < 3 && i + k < words.length; k++) {
+      joined += words[i + k].replace(/[^a-z0-9]/g, '');
+      if (!joined) continue;
+      // A single word gets a tighter budget than a joined pair. Without that
+      // split, "next" alone matches "nexus" within two edits — so "Next is
+      // what time" consumed only "Next" and left a stray "is" on the front of
+      // the command, and "the next issue" triggered on nothing at all.
+      const tol = k === 0 ? 1 : 2;
+      if (Math.abs(joined.length - target.length) > tol) continue;
+      const d = editDistance(joined, target);
+      if (d > tol) continue;
+      // Prefer the closest match, and the longer window when equally close,
+      // so the whole of "next is" is consumed rather than just "next".
+      if (!best || d < best.d || (d === best.d && k > best.k)) {
+        let end = charAt;
+        for (let q = 0; q <= k; q++) end += words[i + q].length + 1;
+        best = { at: charAt, end: Math.min(text.length, end), d, k };
+      }
+    }
+    charAt += words[i].length + 1;
+  }
+  return best;
+}
+// Whisper fills silence with training-set filler. These are the usual ones,
+// and they arrive with no wake word anyway, but they also pollute the log.
+const HALLUCINATIONS = /^(thanks? for watching[!.]?|thank you[!.]?|you[!.]?|bye[!.]?|oh[!.]?|\.|,)$/i;
 function handleUtterance(text) {
   const wake = (CONFIG.wakeWord || 'nexus').toLowerCase().trim();
-  const low = text.toLowerCase();
-  const at = wake ? low.indexOf(wake) : 0;
-  if (wake && at < 0) return;                 // not addressed to us
-  const q = wake ? text.slice(at + wake.length).replace(/^[\s,.:!?-]+/, '') : text;
+  if (HALLUCINATIONS.test(text.trim())) return;
+  const hit = wake ? findWake(text, wake) : { at: 0, end: 0 };
+  if (wake && !hit) return;                   // not addressed to us
+  const q = wake ? text.slice(hit.end).replace(/^[\s,.:!?-]+/, '') : text;
   if (!q) { setState('LISTENING'); fire('listen-in', 700); return; }
   VOICE.heard = q;
   logEvent('> heard: ' + ellipsize(q, 34), 0.9);
