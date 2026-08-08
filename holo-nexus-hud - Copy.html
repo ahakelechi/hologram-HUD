@@ -171,6 +171,22 @@
   body.bg-paper .cv-you { color: #26221e; }
   body.bg-paper .cv-sys { color: rgba(40,36,32,0.6); }
   .cv-tag { opacity: 0.55; margin-right: 5px; }
+  /* Text entry, for conversation without a microphone — testing, a quiet
+     room, or just preferring to type. */
+  #convo-input-row { display: flex; gap: 6px; padding: 0 8px 8px; }
+  #convo-input {
+    flex: 1; min-width: 0; background: rgba(var(--accent-rgb),0.07);
+    border: 1px solid rgba(var(--accent-rgb),0.3); color: var(--text);
+    font: 10px 'Share Tech Mono', monospace; padding: 5px 7px;
+  }
+  #convo-input:focus { outline: none; border-color: rgba(var(--accent-rgb),0.6); }
+  #convo-send {
+    background: rgba(var(--accent-rgb),0.14); border: 1px solid rgba(var(--accent-rgb),0.4);
+    color: rgb(var(--accent-rgb)); font: 9px 'Share Tech Mono', monospace;
+    letter-spacing: 1px; padding: 0 12px; cursor: pointer;
+  }
+  #convo-send:hover { background: rgba(var(--accent-rgb),0.24); }
+  body.bg-paper #convo-input { color: #26221e; }
   #gear {
     position: absolute; z-index: 20; top: 14px; left: 50%; transform: translateX(-50%);
     width: 28px; height: 28px; border-radius: 50%;
@@ -300,6 +316,10 @@
   </div>
   <div id="convo-meter"><div id="convo-level"></div><div id="convo-gate"></div></div>
   <div id="convo-log"></div>
+  <div id="convo-input-row">
+    <input type="text" id="convo-input" placeholder="Type instead of talking…" spellcheck="false">
+    <button id="convo-send">SEND</button>
+  </div>
 </div>
 <div id="gear" title="Settings">⚙</div>
 <div id="mic-btn" title="Use the microphone as the audio source">🎤 ENABLE AUDIO</div>
@@ -344,6 +364,12 @@
     <div class="color-row" style="margin-top:6px;">
     </div>
     <div class="model-row" id="stt-row" style="margin-top:6px;"></div>
+    <div class="color-row" style="margin-top:6px;">
+      <label><input type="checkbox" id="llm-enabled"> LOCAL AI FALLBACK</label>
+    </div>
+    <div class="color-row" style="margin-top:6px;">
+      <label>MODEL <input type="text" id="llm-model" spellcheck="false" title="An Ollama model name, e.g. llama3.2:3b"></label>
+    </div>
     <button class="btn mic-btn-big" id="listen-toggle" style="margin-top:6px;">🎙 START LISTENING</button>
     <button class="btn" id="voice-test" style="margin-top:6px;">TEST VOICE</button>
   </div>
@@ -629,6 +655,10 @@ const DEFAULT_CONFIG = {
   // 'jarvis' rather than a made-up name: speech recognisers transcribe real
   // words reliably, and 'nexus' came back as "next is" every single time.
   wakeWord: 'jarvis',
+  // Local LLM fallback, via the bridge (Ollama). Used only when the rule
+  // table has no answer, so fixed commands stay instant and deterministic.
+  llmEnabled: true,
+  llmModel: 'llama3.2:3b',
   ambient: false,
   ambientVolume: 25,     // %
   globeModel: 'earth',   // which baked model rides the small orbital instrument
@@ -1383,6 +1413,15 @@ function connectBridge() {
     try { msg = JSON.parse(ev.data); } catch (e) { return; }
     if (!msg) return;
     if (msg.type === 'mic') { convoMic(msg.level || 0, msg.state || '', msg.gate || 0); return; }
+    if (msg.type === 'answer') {
+      if (msg.text) { pushHistory('assistant', msg.text); deliverReply(msg.text); }
+      else {
+        convoAdd('sys', 'local model unavailable' + (msg.error ? ' — ' + ellipsize(String(msg.error), 40) : ''));
+        logEvent('> llm: ' + (msg.error || 'empty reply'), 0.6);
+        setState('ATTENTIVE');
+      }
+      return;
+    }
     if (msg.type === 'listen-status') {
       BRIDGE.listening = !!msg.running;
       if (msg.model) BRIDGE.model = msg.model;
@@ -1466,6 +1505,17 @@ function bindConvo() {
   if (convoBound) return;
   const close = convoEl('convo-close');
   if (close) close.addEventListener('click', () => showConvo(false));
+  const inp = convoEl('convo-input'), send = convoEl('convo-send');
+  const submit = () => {
+    const text = (inp.value || '').trim();
+    if (!text) return;
+    inp.value = '';
+    // Typing is itself the address — it skips the wake-word gate that a
+    // spoken utterance needs to avoid answering every stray word in a room.
+    processQuery(text);
+  };
+  if (send) send.addEventListener('click', submit);
+  if (inp) inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
   if (CONFIG.showConvo) showConvo(true);
   convoBound = true;
 }
@@ -1542,7 +1592,19 @@ function fmtClockWords(d) {
 }
 function assistantAnswer(q) {
   const s = q.toLowerCase();
-  const has = (...w) => w.some((x) => s.indexOf(x) >= 0);
+  // Plain substring matching let short single-word triggers fire inside
+  // unrelated words - 'ram' inside "hologRAMs" is what sent a question about
+  // holograms into the memory-status rule instead of the LLM. A single word
+  // (no space in the trigger) now needs a word boundary; a phrase (has a
+  // space, e.g. 'switch to ') keeps the old loose match, since spaced
+  // phrases are not prone to landing inside an unrelated word.
+  const wbCache = new Map();
+  const has = (...w) => w.some((x) => {
+    if (x.indexOf(' ') >= 0) return s.indexOf(x) >= 0;
+    let re = wbCache.get(x);
+    if (!re) { re = new RegExp('\\b' + x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b'); wbCache.set(x, re); }
+    return re.test(s);
+  });
   // --- commands that change the wallpaper ---
   for (const key of MODEL_KEYS) {
     const label = (MODEL_CFG[key].label || '').toLowerCase().split(' ')[0];
@@ -1659,12 +1721,47 @@ function handleUtterance(text) {
   if (wake && !hit) return;                   // not addressed to us
   const q = wake ? text.slice(hit.end).replace(/^[\s,.:!?-]+/, '') : text;
   if (!q) { setState('LISTENING'); fire('listen-in', 700); return; }
+  processQuery(q);
+}
+// Rolling window sent to the local model for context. Capped well below
+// what an LLM could take, because this rides a WebSocket message on every
+// turn and a spoken reply has no use for a long memory anyway.
+const CONVO_HISTORY = [];
+const CONVO_HISTORY_MAX = 12;
+function pushHistory(role, content) {
+  CONVO_HISTORY.push({ role, content });
+  if (CONVO_HISTORY.length > CONVO_HISTORY_MAX) CONVO_HISTORY.splice(0, CONVO_HISTORY.length - CONVO_HISTORY_MAX);
+}
+// Shared by both a wake-worded voice command and typed input in the
+// conversation box, which addresses the assistant directly and so skips the
+// wake-word gate entirely rather than needing "jarvis" typed in a text field.
+function processQuery(q) {
   VOICE.heard = q;
   logEvent('> heard: ' + ellipsize(q, 34), 0.9);
   convoAdd('you', q);
   setState('LISTENING');
   const reply = assistantAnswer(q);
-  if (!reply) { logEvent('> voice: no answer for that', 0.5); convoAdd('sys', 'heard you, but no answer for that — try "help"'); setState('ATTENTIVE'); return; }
+  if (reply) { deliverReply(reply); return; }
+  // The rule table only covers fixed commands and live metrics; it has no
+  // answer for anything open-ended. Handing that off to a local model is what
+  // turns single-shot Q&A into an actual conversation. Falls back to the old
+  // "no answer" message when there is nothing to hand it off to.
+  if (bridgeSock && bridgeSock.readyState === 1 && CONFIG.llmEnabled) {
+    convoAdd('sys', 'thinking…');
+    pushHistory('user', q);
+    try {
+      bridgeSock.send(JSON.stringify({
+        type: 'ask', text: q, model: CONFIG.llmModel,
+        history: CONVO_HISTORY.slice(0, -1),
+      }));
+    } catch (e) { convoAdd('sys', 'could not reach the local model'); setState('ATTENTIVE'); }
+    return;
+  }
+  logEvent('> voice: no answer for that', 0.5);
+  convoAdd('sys', 'heard you, but no answer for that — try "help"');
+  setState('ATTENTIVE');
+}
+function deliverReply(reply) {
   VOICE.reply = reply;
   bridgeReport(reply);
   convoAdd('bot', reply);
@@ -4322,6 +4419,16 @@ function bindVoiceUI() {
   }
   const sel = document.getElementById('voice-pick');
   if (sel) sel.addEventListener('change', () => { CONFIG.assistantVoice = sel.value; saveConfig(); });
+  const llmOn = document.getElementById('llm-enabled');
+  if (llmOn) {
+    llmOn.checked = !!CONFIG.llmEnabled;
+    llmOn.addEventListener('change', () => { CONFIG.llmEnabled = llmOn.checked; saveConfig(); });
+  }
+  const llmModel = document.getElementById('llm-model');
+  if (llmModel) {
+    llmModel.value = CONFIG.llmModel || '';
+    llmModel.addEventListener('input', () => { CONFIG.llmModel = llmModel.value.trim(); saveConfig(); });
+  }
   const lt = document.getElementById('listen-toggle');
   if (lt) lt.addEventListener('click', () => setListening(!BRIDGE.listening));
   updateListenButton();
@@ -4981,6 +5088,8 @@ function handleWEProperties(properties) {
   if (P.assistantspeak !== undefined) CONFIG.assistantSpeak = !!val(P.assistantspeak);
   if (P.assistantvolume !== undefined) CONFIG.assistantVolume = Number(val(P.assistantvolume));
   if (P.wakeword && typeof val(P.wakeword) === 'string') CONFIG.wakeWord = val(P.wakeword).trim();
+  if (P.llmenabled !== undefined) CONFIG.llmEnabled = !!val(P.llmenabled);
+  if (P.llmmodel && typeof val(P.llmmodel) === 'string') CONFIG.llmModel = val(P.llmmodel).trim();
   if (P.bridge !== undefined) { const on = !!val(P.bridge); if (on !== CONFIG.bridge) { CONFIG.bridge = on; if (on) { BRIDGE.tries = 0; connectBridge(); } else disconnectBridge(); } }
   if (P.bridgeport !== undefined) CONFIG.bridgePort = Number(val(P.bridgeport));
   if (P.sttmodel && val(P.sttmodel)) CONFIG.sttModel = val(P.sttmodel);

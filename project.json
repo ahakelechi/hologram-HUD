@@ -800,6 +800,18 @@
 						"value": "medium"
 					}
 				]
+			},
+			"llmenabled": {
+				"order": 69,
+				"text": "Local AI fallback (Ollama)",
+				"type": "bool",
+				"value": true
+			},
+			"llmmodel": {
+				"order": 70,
+				"text": "Local AI model",
+				"type": "textinput",
+				"value": "llama3.2:3b"
 			}
 		},
 		"supportsaudioprocessing": true

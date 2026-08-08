@@ -103,6 +103,49 @@ function log(msg) {
   try { require('fs').appendFileSync(LOG_FILE, line); } catch (e) {}
 }
 
+// --- local LLM, via Ollama -----------------------------------------------
+// Kept short and blunt on purpose: this is spoken aloud through
+// text-to-speech, so a model that answers in paragraphs or markdown lists
+// produces several sentences of silence while it is read out, or a bullet
+// list read as a wall of dashes.
+const LLM_SYSTEM_PROMPT = 'You are the voice of HOLO // NEXUS, an assistant '
+  + 'embedded in a desktop hologram wallpaper. Your replies are read aloud by '
+  + 'text-to-speech, so answer in one or two short spoken sentences - never a '
+  + 'list, never markdown, never code unless directly asked to read code out. '
+  + 'Be direct and a little dry. If asked to change something about the '
+  + 'wallpaper itself, say the user can do that by naming it directly '
+  + '(e.g. "switch to skull") rather than attempting it yourself.';
+const LLM_TIMEOUT_MS = 25000;
+function askOllama(messages, model, cb) {
+  const body = JSON.stringify({ model: model || 'llama3.2:3b', messages, stream: false });
+  const req = http.request({
+    hostname: '127.0.0.1', port: 11434, path: '/api/chat', method: 'POST',
+    headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) },
+  }, (res) => {
+    let data = '';
+    res.on('data', (c) => { data += c; });
+    res.on('end', () => {
+      if (res.statusCode !== 200) {
+        // Ollama's own error body is plain text/JSON and usually says exactly
+        // what is wrong (model not pulled, etc) - worth surfacing as-is.
+        return cb(new Error('ollama ' + res.statusCode + ': ' + data.slice(0, 150)));
+      }
+      try {
+        const j = JSON.parse(data);
+        cb(null, (j.message && j.message.content || '').trim());
+      } catch (e) { cb(new Error('bad response from ollama')); }
+    });
+  });
+  req.on('error', (e) => {
+    // ECONNREFUSED is the expected case when Ollama simply is not running,
+    // and deserves a clearer message than the raw socket error.
+    cb(e.code === 'ECONNREFUSED' ? new Error('Ollama is not running on 127.0.0.1:11434') : e);
+  });
+  req.setTimeout(LLM_TIMEOUT_MS, () => req.destroy(new Error('local model timed out')));
+  req.write(body);
+  req.end();
+}
+
 // --- the listener, owned by the bridge ----------------------------------
 // A web page cannot start a process, so the wallpaper asks the bridge to do
 // it. That means the bridge is the one thing that has to be running, and the
@@ -230,6 +273,28 @@ server.on('upgrade', (req, socket) => {
     }
     else if (msg.type === 'status') {
       try { socket.write(encodeFrame(JSON.stringify(listenerStatus()))); } catch (e) {}
+    }
+    // Open-ended question the rule table had no answer for. Handled here
+    // rather than fetched directly from the page: Ollama sends no CORS
+    // headers, so a browser fetch to it — including from inside Wallpaper
+    // Engine — would just be blocked. Node has no such restriction.
+    else if (msg.type === 'ask') {
+      const q = String(msg.text || '').trim();
+      if (!q) return;
+      const history = Array.isArray(msg.history) ? msg.history.slice(-10) : [];
+      const messages = [{ role: 'system', content: LLM_SYSTEM_PROMPT }]
+        .concat(history.map((h) => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: String(h.content || '') })))
+        .concat([{ role: 'user', content: q }]);
+      log('ask: ' + JSON.stringify(q));
+      askOllama(messages, msg.model, (err, text) => {
+        if (err) {
+          log('llm error: ' + err.message);
+          try { socket.write(encodeFrame(JSON.stringify({ type: 'answer', text: '', error: err.message }))); } catch (e) {}
+          return;
+        }
+        log('llm reply: ' + JSON.stringify(text));
+        try { socket.write(encodeFrame(JSON.stringify({ type: 'answer', text }))); } catch (e) {}
+      });
     }
   }, drop));
   socket.on('error', drop);
