@@ -85,6 +85,33 @@ Speaking back uses the operating system's voices and does not need any of
 that, so "TEST VOICE" can work even when listening does not.
 
 
+LOCAL AI CONVERSATION
+----------------------
+The fixed command list only covers exact phrases. Anything open-ended -
+opinions, explanations, follow-up questions - is handed to a local model
+running in Ollama (http://127.0.0.1:11434), if it is installed and running.
+Settings -> Voice -> "LOCAL AI FALLBACK", with a model name field underneath
+(default llama3.2:3b - pull it with "ollama pull llama3.2:3b" if you do not
+have it).
+
+The last few exchanges are remembered, so a follow-up like "what did I just
+ask you" actually refers back correctly - it is a conversation, not a string
+of one-off answers.
+
+Nothing leaves the machine: Ollama runs locally, and the bridge (not the
+wallpaper page) talks to it directly, since Ollama sends no CORS headers and
+a browser fetch to it would just be blocked.
+
+Replies are kept to a sentence or two on purpose, since they are read aloud.
+
+You do not need to talk to use this - the conversation box has a text field
+for typing instead.
+
+A cold model can take real time to answer the first time (tens of seconds on
+a loaded machine); Ollama keeps it warm for a while after, and follow-ups are
+fast.
+
+
 VOICE INSIDE WALLPAPER ENGINE (the bridge)
 ------------------------------------------
 Inside Wallpaper Engine the microphone opens but transcription does not work:
